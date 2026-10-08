@@ -1,170 +1,93 @@
-# OpenChamber TPS Meter
+# OpenChamber TPS Meter — 带密码实例修复版
 
-An OpenChamber extension that shows the generation rate of the open session:
-a rolling **last-5-seconds** tokens-per-second readout, plus characters per
-second, the current chars-per-token estimate, and the session's real token
-total.
+版本：**1.1.1-auth.1**。这是用于实际环境验证的修复分支，不是上游官方发布版。
 
-The panel is a thin view. A small local service does the measuring.
+基于 `herbkk/openchamber-tps` 的 `feature/status-section` 紧凑版行为和统计逻辑，保留 Work Status 小卡片与完整 TPS 面板，并增加 UI 密码认证。运行时代码已整理为无需第三方运行依赖的 JavaScript；这不是原仓库的逐文件镜像，也不是只有一行改动的补丁。上游来源和许可证见 `docs/PROVENANCE.md`。
 
-## Requirements
+## 修复的问题
 
-- OpenChamber **2.0.0** or newer (OpenCode 2.0.15+). The extension reads the
-  OpenCode 2 event stream; the 1.0.x releases were the last ones for
-  OpenChamber 1.x, where that stream had different event names.
-- Extensions load on OpenChamber web and desktop only. VS Code and the mobile
-  app do not load them.
+原版统计服务没有主界面的登录 Cookie，直接请求 `/api/global/event`，因此带 UI 密码的实例会返回 HTTP 401。本版不关闭服务器认证，也不读取主程序的秘密文件、Cookie 数据库、模型 API Key 或密码环境变量。
 
-## What it does
+收到 401 后，小卡片显示登录入口。用户输入**已有的 OpenChamber 访问密码**，扩展服务通过官方 `POST /auth/session` 登录，获得 UI session Cookie 后订阅全局事件流。页面通过 OpenChamber 的 `serviceRequest` 通道请求扩展服务，不直接连接服务端口。
 
-- Opens as a rail panel next to the built-in panels.
-- Follows the open chat. Switch sessions and it rewires to the new one.
-- Shows a large `tok/s` value, a bar that tracks the recent peak, and the
-  session title with its live status (`generating` / `idle`).
-- After a turn finishes, shows **that turn's final average** separately, so the
-  live number and the completed result do not overwrite each other.
-- Shows the session's **real token total** (generated tokens, from OpenCode's
-  own usage events) beside the local estimate.
+密码不写入磁盘、日志、浏览器存储或仓库；提交后清空输入框。会话 Cookie 只保存在扩展服务进程内存里，不返回给前端。JavaScript 使用垃圾回收，不能保证字符串在内存中即时物理擦除。
 
-## How it measures
+## 适用环境
 
-```
-panel (sandboxed iframe)
-  │  POST /watch { origin, sessionId }   ← the origin comes from location.href
-  │  GET  /rate                          ← polled every 250 ms
-  ▼
-host loopback proxy  ──►  service process (127.0.0.1)
-                              │  GET <origin>/api/global/event   (Server-Sent Events)
-                              ▼
-                         OpenChamber event stream
+- 目标接口：OpenChamber **2.1.1**，OpenCode 2 的全局事件流。
+- 适用于 Windows 桌面前端直接连接 Linux OpenChamber Server 的部署；也保留 HTTP(S) 网页模式。
+- 使用主程序提供的 Node 运行时；开发检查在 Node **22.16.0** 完成。
+- 使用 UI 密码进行登录。不支持以此替代单点登录、仅客户端凭证认证或公共中继认证。
+- ZIP 内的 `.js` 可以直接运行，**安装不需要 npm install、Bun 或重新编译 OpenChamber**。
+
+## 直接通过扩展 URL 安装
+
+在 Windows OpenChamber 中保持连接到目标 Linux 实例，打开 **Settings → Extensions**，移除旧的 TPS Meter，然后在 **Folder, ZIP, or URL** 中粘贴：
+
+```text
+https://github.com/aleygey/openchamber-tps#fix/ui-password-auth
 ```
 
-The service subscribes to `GET /api/global/event`, the same global event stream
-OpenChamber's own hub reads, and counts streamed output characters for the
-watched session inside a five-second window. Two details of that stream matter:
+点击 **Add**，审阅并批准运行本地服务权限。此分支与原版共用 `tps-meter` ID，不要并装。**保留 `#fix/ui-password-auth` 后缀**；仓库 `main` 没有本次修复。
 
-- It forwards OpenCode 2 wire events (`{ id, created, type, data }`). A proxy
-  that wraps them as `{ payload, directory, eventId }` is unwrapped too.
-- `/api/event` is the directory-scoped sibling: without a `directory` parameter
-  it carries only the server's default directory, so an open project never sees
-  its own session events there. That is why the global stream is used.
+回到 **Work Status → TPS**，首次提示登录时输入服务器已有的 OpenChamber UI 访问密码。无需关闭服务器密码，也无需重新编译或安装依赖。完整 TPS 面板标题显示版本 `1.1.1-auth.1`。
 
-The counter itself:
+Git URL 安装跟随指定分支；之后的版本可通过扩展设置检查更新。远程实例需要由运行 OpenChamber Server 的机器正常访问 GitHub。
 
-- `session.text.delta` and `session.reasoning.delta` are the primary source.
-  `session.tool.input.delta` carries tool input, not generation, and is
-  ignored.
-- `session.text.ended` and `session.reasoning.ended` full-value boundaries are
-  the fallback for a service that attached after the deltas went by. A part is
-  counted by exactly one of the two paths.
-- Each settled step (`session.step.ended`, or `session.step.failed` with
-  counts) reports the provider's real `tokens.output + tokens.reasoning`. Those
-  recalibrate chars-per-token, smoothed with an exponential moving average and
-  clamped to `0.05 .. 1`.
-- `session.usage.updated` reports the session's running totals (cost and
-  input/output/reasoning/cache tokens). The panel shows generated tokens
-  (`output + reasoning`) from it.
+### GitHub 无法访问时：本地文件夹安装
 
-The rolling tokens-per-second is `charsPerSecond × charsPerToken`. It is an
-estimate of generation throughput, because the live stream only carries text
-fragments; real token counts arrive per settled step, not per character. The
-finished-turn average and the session total use the real counts.
-
-## Turn average
-
-A turn spans `session.execution.started` until `session.execution.succeeded` or
-`session.execution.failed`. A `session.execution.interrupted` with reason
-`shutdown` keeps the turn open, because OpenCode resumes the same turn after a
-restart; every other interruption ends it. Its average divides tokens by
-generation time only:
-
-- Time between consecutive streamed characters counts as generation, up to a
-  1-second threshold. A longer gap is a pause and is excluded, which covers tool
-  execution and retries.
-- A pending permission or question excludes the wait outright, even when the
-  user answers within that threshold. OpenCode keeps the session `busy` while an
-  agent waits for the user, so `waiting-permission` and `waiting-question` are
-  detected from `permission.*` and `form.*` events (`form.*` is the OpenCode 2
-  shape of the question tool), and the panel shows `waiting for permission` /
-  `waiting for answer` instead of `generating`.
-- Time to the first token is excluded when the first character arrives more than
-  a second after the turn started.
-
-When the turn ends the service reports:
-
-- `tokens`: the sum of `output + reasoning` across the turn's settled steps,
-  adjusted per assistant message id so a retried step counts once.
-- `activeMs`: accumulated generation time.
-- `wallMs`: first counted character to last counted character.
-- `pausedMs`: `wallMs - activeMs`, what the average left out.
-- `tokensPerSecond`: `tokens / activeMs`.
-- `source`: `tokens` when real counts existed, otherwise `estimate` from
-  characters times the calibrated ratio. The panel labels the estimated case.
-
-The panel shows the active time, and adds `paused` once a turn has excluded at
-least a second. Switching the watched session clears the stored turn and the
-session totals.
-
-## Build
+将之前提供的 ZIP 上传到 Linux 并解压，或在能访问 GitHub 的机器克隆这个分支后复制到 Linux。在扩展页面填入 **Linux 上扩展根目录的绝对路径**（该目录下应直接包含 `package.json`），而不是 Windows 路径。
 
 ```bash
-bun install
-bun run build      # panel/main.js (IIFE) + service/main.js (ESM)
+git clone --branch fix/ui-password-auth --single-branch \
+  https://github.com/aleygey/openchamber-tps.git \
+  "$HOME/openchamber-tps-auth"
+realpath "$HOME/openchamber-tps-auth"
 ```
 
-`bun run build:panel` and `bun run build:service` build one side each. Both use
-`openchamber-guest-bundle` from `@openchamber/sdk`. Commit the built files:
-OpenChamber never compiles an extension at install time.
+文件夹安装不自动更新；更新时先在扩展设置中停用，再更新目录并重新启用，避免进程与磁盘文件版本不一致。
 
-## Install
+## 首次登录
 
-Settings → Extensions → **Folder, ZIP, or URL**, paste
-`https://github.com/airtaxi/openchamber-tps`, and choose **Add**. Approve the
-permissions dialog: it includes **Run a local service**, which is what the meter
-needs.
+这里输入的是服务器启动参数 `--ui-password` 对应的**现有密码**，不是 Linux 登录密码、GitHub Token 或模型 API Key。无需将密码发给任何人。
 
-A Git install can update itself. Bump `version` in `package.json`, rebuild, and
-push; OpenChamber offers the update the next time Settings → Extensions is
-opened. Add `#v1.0.0` or `#main` to the URL to pin a tag or branch. On
-OpenChamber 1.x the install is refused: pin `#v1.0.1`, the last release for that
-line.
+页面会显示即将登录的服务器地址。若地址为 `http://...`，必须勾选确认：HTTP 不加密。只在确认可信的网络与正确服务器地址上使用；其他场景应使用 HTTPS 或经批准的安全隧道。扩展不会偷偷改为跳过 TLS 验证。
 
-To work on the extension itself, add the absolute path of your checkout
-instead. A folder install runs straight from that folder and never updates on
-its own.
+登录成功后，小卡片收回为默认 **64px** 高度。生成文本时显示 `≈ ... tok/s`；无输出时为 0；连接失败或未登录时显示 `—`，而不是伪装成真实零速率。完整 TPS 面板有“重试”“清除 TPS 登录”按钮。
 
-## Test
+在同一服务器内切换会话不会要求重复输入密码。扩展服务重启、切换服务器、清除登录，或重连时发现会话失效，可能需要重新登录。清除 TPS 登录只清除扩展自己的内存状态，不注销主程序。
+
+## 安全边界
+
+- 扩展服务仅监听 `127.0.0.1`；每个入口都检查主程序为该服务分配的 Bearer Token。
+- 密码只用于显式的一次登录。失败不会自动重试密码；429 遵守 Retry-After。
+- Cookie 绑定准确的 scheme + host + port；切换服务器清除旧凭据。
+- 登录与事件流均禁止自动跟随重定向，不把密码或 Cookie 转发到重定向目标。
+- 收到 401 后暂停事件流自动重试，等待用户登录。
+- 不增加监听公网端口，不修改 OpenChamber 配置，不关闭访问密码。
+- 仍然需要信任这个扩展：获准的本地扩展服务具有运行用户的系统权限。这个包的实现只使用所需的本地服务/网络能力，但不是操作系统沙箱。
+
+## TPS 口径和限制
+
+实时数值仍是**最近 5 秒文本字符数的校准估算**，不是 tokenizer 逐 token 计数。默认使用每字符 0.25 Token，再根据步骤结束的 `tokens.output + tokens.reasoning` 逐步校准。中文、代码、不同模型的分词方式会造成偏差，特别是在第一轮尚未结算之前。
+
+本版统计文字与推理增量，不统计工具输入 JSON。完成轮次的平均速率使用已结算的 Token 数，时间仍由流式片段间隔估算；大于 1 秒的停顿及明确的用户等待不计入生成时间。这个值不是供应商服务器内测的解码 TPS，也不代表整个任务耗时。
+
+继承的限制：一个服务进程跟踪一个活动会话；不同窗口同时选择不同会话可能互相切换统计目标。折叠状态区或关闭右栏会卸载页面。公共 Relay 的 `srcDoc` 页面没有可靠的 HTTP origin，本版没有新增 Relay 支持。通过改变外部端口或 Cookie 名的复杂反向代理也未实机验证。
+
+## 开发与测试
+
+所有运行时代码都是源码 JavaScript，无需打包器：
 
 ```bash
-node scripts/smoke.mjs
+npm run check
+npm test
 ```
 
-The smoke test starts a mock OpenChamber event stream and the built service,
-feeds synthetic OpenCode 2 events, and asserts the counted characters, the
-rolling rate, the calibration, the real token counts (per step and per
-session), the finished-turn average, the wait accounting, and the session
-filtering. It covers the delta path, the full-value `*ended` fallback path,
-`session.execution.*` status, the `shutdown` interruption, and the state cleared
-when the watched session changes.
+`tests/` 使用本机假服务器、虚构密码和合成事件，不连接真实模型，也不读取用户项目。测试范围和真实环境尚未验证的部分见 `TEST-REPORT.md`。
 
-## Limitations
+`tests/ui_offline_check.py` 是可选的离线浏览器检查，需要 Python Playwright 和 Chromium。它在无 `allow-forms` 的 iframe 中测试点击登录、回车、布局等；使用模拟主程序及测试用 origin，不能替代真实 OpenChamber 兼容性验证。
 
-- **OpenChamber UI password.** The service subscribes to `/api/global/event`
-  without a session. If the instance is protected with a UI password, the stream
-  answers `401` and the panel shows a reconnect notice instead of a rate.
-- **Relay frames.** Under the private relay the panel runs from `srcDoc` with no
-  usable origin, so the meter cannot discover the event stream and says so.
-- **Managed OpenCode auth.** OpenChamber starts its managed OpenCode server with
-  a generated password the service process never receives, which is why the
-  service reads OpenChamber's own `/api/global/event` proxy rather than OpenCode
-  directly. This is also why an instance-level UI password blocks it.
-- **No per-token streaming.** Deltas carry characters only. The rolling number
-  stays a calibrated character estimate; real counts arrive per settled step
-  (`session.step.ended`) and per session (`session.usage.updated`).
-- **Reasoning counts as output.** Reasoning text is generated text, so deltas
-  from reasoning parts are counted. That matches `tokens.output + reasoning`
-  used for calibration, but it is not the same as visible answer characters.
+## 许可证
 
-## License
-
-MIT. See [LICENSE](LICENSE).
+MIT。原 TPS Meter 版权见 `LICENSE`；SDK 协议适配部分的上游版权见 `licenses/openchamber-sdk-LICENSE`。

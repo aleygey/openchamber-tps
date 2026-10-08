@@ -1,0 +1,2 @@
+auth check 请先确认上面的 HTTP 服务器地址。
+PASS: offline sandboxed iframe; compact/form/HTTP consent/login/64px/session-switch/full-panel/logout/wrong-password/relogin. Zero uncaught JS errors. Origin and host responses are mock fixtures.

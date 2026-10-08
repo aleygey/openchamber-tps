@@ -1,0 +1,124 @@
+TAP version 13
+# Subtest: origin validation rejects credentials, paths, non-http schemes and query strings
+ok 1 - origin validation rejects credentials, paths, non-http schemes and query strings
+  ---
+  duration_ms: 1.142908
+  type: 'test'
+  ...
+# Subtest: login uses official endpoint and keeps port-scoped cookie in memory
+ok 2 - login uses official endpoint and keeps port-scoped cookie in memory
+  ---
+  duration_ms: 41.35632
+  type: 'test'
+  ...
+# Subtest: wrong password is not retried automatically
+ok 3 - wrong password is not retried automatically
+  ---
+  duration_ms: 90.191611
+  type: 'test'
+  ...
+# Subtest: origin switching cancels pending login and drops all credentials
+ok 4 - origin switching cancels pending login and drops all credentials
+  ---
+  duration_ms: 34.138175
+  type: 'test'
+  ...
+# Subtest: a login redirect never receives credentials at its destination
+ok 5 - a login redirect never receives credentials at its destination
+  ---
+  duration_ms: 7.209527
+  type: 'test'
+  ...
+# Subtest: 429 prevents a second outbound login while Retry-After is active
+ok 6 - 429 prevents a second outbound login while Retry-After is active
+  ---
+  duration_ms: 10.588496
+  type: 'test'
+  ...
+# Subtest: session-cookie parsing accepts canonical names only and respects Secure/expiry
+ok 7 - session-cookie parsing accepts canonical names only and respects Secure/expiry
+  ---
+  duration_ms: 0.880814
+  type: 'test'
+  ...
+# Subtest: SDK hello/ready/session and real v1 resize envelope
+ok 8 - SDK hello/ready/session and real v1 resize envelope
+  ---
+  duration_ms: 2.842002
+  type: 'test'
+  ...
+# Subtest: service requests accept matching parent responses only
+ok 9 - service requests accept matching parent responses only
+  ---
+  duration_ms: 1.793225
+  type: 'test'
+  ...
+# Subtest: rolling estimate, reasoning, session filter, no tool-input inflation, and no ended double count
+ok 10 - rolling estimate, reasoning, session filter, no tool-input inflation, and no ended double count
+  ---
+  duration_ms: 2.85408
+  type: 'test'
+  ...
+# Subtest: real settled tokens, duplicate settlement, calibration, and finished-turn average
+ok 11 - real settled tokens, duplicate settlement, calibration, and finished-turn average
+  ---
+  duration_ms: 0.552761
+  type: 'test'
+  ...
+# Subtest: waits and long tool gaps are excluded; session changes reset state
+ok 12 - waits and long tool gaps are excluded; session changes reset state
+  ---
+  duration_ms: 0.460311
+  type: 'test'
+  ...
+# Subtest: SSE accepts split CRLF, multiline data, Unicode chunks and wrapped events
+ok 13 - SSE accepts split CRLF, multiline data, Unicode chunks and wrapped events
+  ---
+  duration_ms: 0.762777
+  type: 'test'
+  ...
+# Subtest: SSE ignores malformed JSON and bounds frame size
+ok 14 - SSE ignores malformed JSON and bounds frame size
+  ---
+  duration_ms: 0.66491
+  type: 'test'
+  ...
+# Subtest: protected server: 401 -> manual login -> authenticated SSE -> TPS; no credential leaks
+ok 15 - protected server: 401 -> manual login -> authenticated SSE -> TPS; no credential leaks
+  ---
+  duration_ms: 2391.49394
+  type: 'test'
+  ...
+# Subtest: unprotected servers still stream without any login request
+ok 16 - unprotected servers still stream without any login request
+  ---
+  duration_ms: 137.003617
+  type: 'test'
+  ...
+# Subtest: changing server clears cookie; cross-origin login is refused
+ok 17 - changing server clears cookie; cross-origin login is refused
+  ---
+  duration_ms: 180.549116
+  type: 'test'
+  ...
+# Subtest: stream redirects are not followed and no cookie reaches destination
+ok 18 - stream redirects are not followed and no cookie reaches destination
+  ---
+  duration_ms: 128.870106
+  type: 'test'
+  ...
+# Subtest: clear login forgets the session; auth requests require service bearer
+ok 19 - clear login forgets the session; auth requests require service bearer
+  ---
+  duration_ms: 154.70207
+  type: 'test'
+  ...
+1..19
+# tests 19
+# suites 0
+# pass 19
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3143.298043

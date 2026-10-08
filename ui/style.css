@@ -1,0 +1,40 @@
+:root {
+  --oc-bg: #fff; --oc-fg: #222; --oc-muted: #777; --oc-border: #ddd;
+  --oc-elevated: #fafafa; --oc-selection: #e8e8e8; --oc-primary: #548c70;
+  --oc-error-text: #a83f3f; --oc-font: system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body { background: var(--oc-bg); color: var(--oc-fg); font: 13px/1.4 var(--oc-font); padding: 6px 10px; }
+body[data-mode="panel"] { padding: 16px; }
+[hidden] { display: none !important; }
+.readout { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.value { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.unit { color: var(--oc-muted); font-size: 12px; }
+.badge { margin-left: auto; font-size: 11px; color: var(--oc-muted); white-space: nowrap; max-width: 50%; overflow: hidden; text-overflow: ellipsis; }
+.bar { height: 4px; margin-top: 5px; background: var(--oc-selection); border-radius: 4px; overflow: hidden; }
+.fill { height: 100%; background: var(--oc-primary); width: 100%; transform-origin: left center; transform: scaleX(0); transition: transform 160ms linear; }
+.notice { font-size: 11px; color: var(--oc-muted); margin-top: 4px; overflow-wrap: anywhere; }
+.notice:empty { display: none; }
+.auth { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--oc-border); }
+.server { color: var(--oc-muted); overflow-wrap: anywhere; font-size: 11px; margin-bottom: 5px; }
+.login-row { display: flex; gap: 6px; align-items: center; }
+input[type=password] { width: 100%; min-width: 0; border: 1px solid var(--oc-border); border-radius: 5px; background: var(--oc-elevated); color: var(--oc-fg); padding: 6px 8px; font: inherit; }
+button { font: inherit; padding: 5px 9px; border: 1px solid var(--oc-border); border-radius: 5px; background: var(--oc-elevated); color: var(--oc-fg); cursor: pointer; white-space: nowrap; }
+button:hover { filter: brightness(.96); }
+button:disabled { opacity: .55; cursor: default; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--oc-primary); outline-offset: 1px; }
+.confirm { display: flex; gap: 6px; align-items: flex-start; font-size: 11px; color: var(--oc-muted); margin: 7px 0; }
+.confirm input { margin: 2px 0 0; }
+.hint { color: var(--oc-muted); font-size: 11px; margin: 5px 0; }
+.error { color: var(--oc-error-text); }
+.panel-only { display: none; }
+body[data-mode="panel"] .panel-only { display: block; }
+body[data-mode="panel"] .value { font-size: 40px; }
+h1 { font-size: 16px; margin: 0 0 14px; }
+.details { border-top: 1px solid var(--oc-border); margin-top: 18px; padding-top: 12px; }
+dl { display: grid; grid-template-columns: 1fr auto; gap: 7px 14px; }
+dt { color: var(--oc-muted); }
+dd { margin: 0; font-variant-numeric: tabular-nums; text-align: right; overflow-wrap: anywhere; }
+.actions { display: flex; gap: 8px; margin-top: 12px; }
+@media (prefers-reduced-motion: reduce) { .fill { transition: none; } }
