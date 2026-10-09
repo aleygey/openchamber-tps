@@ -1,4 +1,7 @@
 import http from 'node:http';
+import { mkdtemp, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
@@ -54,23 +57,25 @@ export async function fixture(t, options = {}) {
   t.after(async () => { state.closeStreams(); server.closeAllConnections(); await new Promise(r => server.close(r)); });
   return state;
 }
-export async function service(t) {
+export async function service(t, options = {}) {
+  const directory = options.directory ?? await mkdtemp(path.join(os.tmpdir(), 'tps-test-'));
   const reservation = http.createServer();
   const origin = await listen(reservation);
   const port = reservation.address().port;
   await new Promise(r => reservation.close(r));
   const token = randomBytes(20).toString('hex');
   const child = spawn(process.execPath, [fileURLToPath(new URL('../service/main.js', import.meta.url))], {
-    env: { PATH: process.env.PATH, OPENCHAMBER_SERVICE_PORT: String(port), OPENCHAMBER_SERVICE_TOKEN: token },
+    env: { PATH: process.env.PATH, OPENCHAMBER_SERVICE_PORT: String(port), OPENCHAMBER_SERVICE_TOKEN: token, OPENCHAMBER_TPS_DATA_DIR: directory },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';
   child.stdout.on('data', b => { output += b; });
   child.stderr.on('data', b => { output += b; });
-  t.after(async () => {
-    if (child.exitCode !== null) return;
+  async function stop() {
+    if (child.exitCode !== null || child.signalCode !== null) return;
     await new Promise(resolve => { child.once('exit', resolve); child.kill('SIGTERM'); });
-  });
+  }
+  t.after(async () => { await stop(); if (!options.directory) await rm(directory, { recursive: true, force: true }); });
   const call = async (method, path, data, authenticated = true) => {
     const response = await fetch(origin + path, {
       method, headers: { 'Content-Type': 'application/json', ...(authenticated ? { Authorization: `Bearer ${token}` } : {}) },
@@ -79,6 +84,6 @@ export async function service(t) {
     return { status: response.status, data: await response.json() };
   };
   await waitFor(async () => { try { return (await call('GET', '/health')).status === 200; } catch { return false; } });
-  return { origin, call, output: () => output, rate: async () => (await call('GET', '/rate')).data };
+  return { origin, call, directory, stop, output: () => output, rate: async () => (await call('GET', '/rate')).data };
 }
 export const event = (type, data) => ({ id: randomBytes(6).toString('hex'), type, data });

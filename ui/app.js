@@ -4,6 +4,12 @@
   const $ = id => document.getElementById(id);
   const compact = document.body.dataset.mode === 'status';
   const en = {
+    average: 'Active average', peak: 'Peak (5s)', chart: 'Activity chart', axis: 'Cumulative active time',
+    active: 'Active ', empty: 'Waiting for streamed output', recent60: 'Last 60s', recent300: 'Last 5m', all: 'Retained history',
+    historyNote: 'Pauses excluded · dashed line: active average', reset: 'Reset statistics', confirmReset: 'Confirm reset',
+    persistenceWarning: 'Statistics could not be saved/loaded; current readings still work.',
+    averageHint: 'Time-weighted average of rolling-5s TPS during observed generation intervals. Estimated; not total task throughput.',
+    peakHint: 'Highest rolling-5s TPS observed during streaming; not a single-token spike.',
     connecting: 'connecting', live: 'idle', generating: 'generating', error: 'disconnected',
     auth: 'sign-in required', idle: 'no connection', permission: 'waiting for permission', question: 'waiting for answer',
     login: 'Sign in', signing: 'Signing in…', password: 'OpenChamber UI password',
@@ -19,7 +25,13 @@
     limited: 'Too many login attempts. Try again in ', seconds: ' seconds.', failed: 'Login failed. ',
   };
   const zh = {
-    ...en, connecting: '连接中', live: '空闲', generating: '生成中', error: '未连接',
+    ...en, average: '活跃平均', peak: '最高（5秒）', chart: '活跃曲线', axis: '累计活跃时间',
+    active: '活跃 ', empty: '等待生成输出', recent60: '近60秒', recent300: '近5分钟', all: '全部保留',
+    historyNote: '不计等待 · 虚线为活跃平均', reset: '重置本会话统计', confirmReset: '确认重置',
+    persistenceWarning: '统计存储读写失败；当前数值仍可使用。',
+    averageHint: '仅在观测到连续生成输出的时段，对5秒滚动TPS做时间加权平均。为估算值，不是整个任务的吞吐量。',
+    peakHint: '已观测到的5秒滚动TPS最高值，不是单个Token的瞬时尖峰。',
+    connecting: '连接中', live: '空闲', generating: '生成中', error: '未连接',
     auth: '需要登录', idle: '未连接', permission: '等待授权', question: '等待回答',
     login: '登录', signing: '登录中…', password: 'OpenChamber 访问密码', server: '登录到：',
     http: '我确认这是自己的服务器。HTTP 不加密；非可信网络应使用 HTTPS 或经批准的隧道。',
@@ -48,6 +60,14 @@
   let peak = 0;
   let height = 0;
   let transient = '';
+  let history = [];
+  let historyKey = '';
+  let historyPolledAt = 0;
+  let historyBusy = false;
+  let historyError = '';
+  let resetUntil = 0;
+  const chart = window.TPSChart.create($('chart'), $('chart-tooltip'));
+  $('chart-window').value = compact ? '60000' : '0';
   const key = () => `${origin}|${sessionId ?? ''}`;
   const resolveOrigin = () => {
     try { const u = new URL(window.location.href); return ['http:', 'https:'].includes(u.protocol) ? u.origin : null; }
@@ -58,8 +78,8 @@
     if (error?.code === 'DISABLED') return copy.disabled;
     return error?.message || copy.error;
   }
-  async function request(method, path, body) {
-    const result = await host.serviceRequest({ method, path, ...(body ? { body: JSON.stringify(body) } : {}) });
+  async function request(method, path, body, query) {
+    const result = await host.serviceRequest({ method, path, ...(body ? { body: JSON.stringify(body) } : {}), ...(query ? { query } : {}) });
     let data;
     try { data = JSON.parse(result.body); } catch { throw new Error('Invalid TPS service JSON.'); }
     if (result.status >= 400) throw Object.assign(new Error(data.error || `HTTP ${result.status}`), data, { status: result.status });
@@ -89,6 +109,7 @@
     $('login').disabled = loggingIn || (rate?.authRetryAfter > 0);
     $('login').textContent = loggingIn ? copy.signing : copy.login;
     if (rate?.authRetryAfter > 0) $('auth-error').textContent = copy.limited + rate.authRetryAfter + copy.seconds;
+    drawStatistics();
     if (!compact) {
       $('session').textContent = sessionTitle || sessionId || '';
       const avg = rate?.lastTurn;
@@ -108,6 +129,37 @@
     }
     resize();
   }
+  function drawStatistics() {
+    const statistics = rate?.sessionStats;
+    $('metrics').hidden = !statistics || !sessionId || Boolean(rate?.authRequired);
+    const format = n => Number.isFinite(n) ? `≈ ${n.toFixed(1)}` : '—';
+    $('average-value').textContent = format(statistics?.averageTps);
+    $('peak-value').textContent = format(statistics?.peakTps);
+    $('average-value').title = copy.averageHint;
+    $('peak-value').title = copy.peakHint;
+    $('active-time').textContent = copy.active + window.TPSChart.duration(statistics?.activeMs || 0);
+    $('stats-warning').textContent = rate?.statisticsWarning ? copy.persistenceWarning : '';
+    $('history-note').textContent = historyError || copy.historyNote;
+    $('reset-stats').textContent = Date.now() < resetUntil ? copy.confirmReset : copy.reset;
+  }
+  const chartKey = () => `${key()}|${$('chart-window').value}`;
+  function paintChart() {
+    chart.render(history, { averageTps: rate?.sessionStats?.averageTps,
+      empty: copy.empty, locale: document.documentElement.lang });
+  }
+  async function pollHistory() {
+    if (disposed || historyBusy || !sessionId || !rate?.sessionStats || $('chart-body').hidden || rate.authRequired) return;
+    const expected = chartKey();
+    if (historyKey === expected && Date.now() - historyPolledAt < 1000) return;
+    historyBusy = true;
+    try {
+      const result = await request('GET', '/history', undefined, { sessionId, windowMs: $('chart-window').value });
+      if (expected !== chartKey() || result.origin !== origin || result.sessionId !== sessionId) return;
+      history = result.points; historyKey = expected; historyPolledAt = Date.now(); historyError = '';
+      paintChart(); drawStatistics(); resize();
+    } catch (error) { if (expected === chartKey()) { historyError = describe(error); drawStatistics(); } }
+    finally { historyBusy = false; }
+  }
   function configure() {
     if (configuring) return configuring;
     configuring = (async () => {
@@ -126,10 +178,13 @@
     try {
       await configure();
       const expected = key();
-      const result = await request('GET', '/rate');
+      const result = await request('GET', '/rate', undefined, sessionId ? { sessionId } : undefined);
       if (expected !== key() || result.origin !== origin || result.sessionId !== sessionId) return;
-      rate = result; transient = ''; draw();
-    } catch (error) { transient = describe(error); draw(); }
+      rate = result; transient = ''; draw(); void pollHistory();
+    } catch (error) {
+      if (error.code === 'SESSION_NOT_WATCHED') { configuredKey = ''; rate = null; }
+      transient = describe(error); draw();
+    }
     finally { polling = false; }
   }
   async function loop() {
@@ -151,6 +206,11 @@
     $('password').placeholder = copy.password; $('password').setAttribute('aria-label', copy.password);
     $('http-text').textContent = copy.http; $('auth-hint').textContent = copy.hint;
     $('estimate-hint').textContent = copy.estimate;
+    $('average-label').textContent = copy.average; $('peak-label').textContent = copy.peak;
+    $('chart-toggle').textContent = copy.chart; $('chart-axis').textContent = copy.axis;
+    $('chart').setAttribute('aria-label', copy.chart + ': ' + copy.axis + ' / tok/s');
+    for (const [index, label] of [copy.recent60, copy.recent300, copy.all].entries()) $('chart-window').options[index].textContent = label;
+    $('reset-stats').textContent = copy.reset;
     $('retry').textContent = copy.retry; $('forget').textContent = copy.forget;
   }
   // Guest frames intentionally have no allow-forms permission. All login
@@ -188,11 +248,30 @@
     try { await request('POST', '/auth/clear', {}); $('password').value = ''; await poll(); }
     catch (error) { transient = describe(error); draw(); }
   });
+  $('chart-toggle').addEventListener('click', () => {
+    $('chart-body').hidden = !$('chart-body').hidden;
+    $('chart-toggle').setAttribute('aria-expanded', String(!$('chart-body').hidden));
+    if (!$('chart-body').hidden) { paintChart(); historyPolledAt = 0; void pollHistory(); }
+    resize();
+  });
+  $('chart-window').addEventListener('change', () => {
+    history = []; historyKey = ''; paintChart(); void pollHistory();
+  });
+  $('reset-stats').addEventListener('click', async () => {
+    if (!sessionId) return;
+    if (Date.now() >= resetUntil) { resetUntil = Date.now() + 5000; drawStatistics(); return; }
+    const expected = key(); resetUntil = 0;
+    try {
+      await request('POST', '/stats/reset', { origin, sessionId });
+      if (expected !== key()) return;
+      history = []; historyKey = ''; rate = null; paintChart(); await poll();
+    } catch (error) { transient = describe(error); draw(); }
+  });
   host.onReady(context => {
     applyTheme(context); language(context);
     const nextOrigin = resolveOrigin();
     if (origin !== nextOrigin) {
-      origin = nextOrigin; configuredKey = ''; rate = null;
+      origin = nextOrigin; configuredKey = ''; rate = null; history = []; historyKey = ''; resetUntil = 0; paintChart();
       $('password').value = ''; $('allow-http').checked = false; $('auth-error').textContent = '';
     }
     sessionId = context.session?.id ?? null;
@@ -202,12 +281,12 @@
   });
   host.onSession(session => {
     const next = session?.id ?? null;
-    if (sessionId !== next) { sessionId = next; rate = null; peak = 0; }
+    if (sessionId !== next) { sessionId = next; rate = null; peak = 0; history = []; historyKey = ''; historyError = ''; resetUntil = 0; paintChart(); draw(); }
     sessionTitle = session?.title ?? '';
     if (started) void poll();
   });
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resize).observe($('root'));
   window.addEventListener('pagehide', () => {
-    disposed = true; clearTimeout(timer); $('password').value = ''; host.dispose();
+    disposed = true; clearTimeout(timer); $('password').value = ''; chart.dispose(); host.dispose();
   }, { once: true });
 })();

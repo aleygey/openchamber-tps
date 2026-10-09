@@ -38,3 +38,29 @@ dt { color: var(--oc-muted); }
 dd { margin: 0; font-variant-numeric: tabular-nums; text-align: right; overflow-wrap: anywhere; }
 .actions { display: flex; gap: 8px; margin-top: 12px; }
 @media (prefers-reduced-motion: reduce) { .fill { transition: none; } }
+.metrics { margin-top: 8px; }
+.summary-row { display: flex; align-items: flex-end; gap: 16px; font-variant-numeric: tabular-nums; }
+.summary-row > div { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 6px; }
+.metric-label, .metric-unit { color: var(--oc-muted); font-size: 11px; }
+.summary-row strong { font-size: 14px; font-weight: 600; }
+.metric-unit { margin-left: auto; }
+.chart-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 6px; }
+#chart-toggle { font-size: 11px; padding: 1px 4px; border: none; background: transparent; }
+#chart-toggle::before { content: '▾ '; }
+#chart-toggle[aria-expanded=false]::before { content: '▸ '; }
+.chart-toolbar .hint { margin: 0; font-variant-numeric: tabular-nums; }
+.chart-options { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+#chart-window { font: inherit; font-size: 10px; padding: 1px 3px; color: var(--oc-muted); background: var(--oc-bg); border: 1px solid var(--oc-border); border-radius: 4px; max-width: 48%; }
+.chart-wrap { position: relative; }
+#chart { width: 100%; height: 110px; display: block; overflow: hidden; }
+.chart-grid { stroke: var(--oc-border); stroke-width: .6; }
+.chart-label { fill: var(--oc-muted); font: 10px var(--oc-font); }
+.chart-line { fill: none; stroke: var(--oc-primary); stroke-width: 1.8; stroke-linejoin: round; }
+.chart-dot { fill: var(--oc-primary); }
+.chart-average { stroke: var(--oc-muted); stroke-width: 1; stroke-dasharray: 4 4; opacity: .7; }
+.chart-tooltip { position: absolute; top: 1px; right: 1px; max-width: 100%; padding: 3px 6px; background: var(--oc-elevated); color: var(--oc-fg); border: 1px solid var(--oc-border); border-radius: 4px; font-size: 10px; pointer-events: none; overflow-wrap: anywhere; }
+#history-note { font-size: 10px; margin: 0; }
+body[data-mode=panel] #chart { height: 220px; }
+body[data-mode=panel] .summary-row { margin-top: 16px; gap: 32px; }
+body[data-mode=panel] .summary-row strong { font-size: 22px; }
+.actions { flex-wrap: wrap; }

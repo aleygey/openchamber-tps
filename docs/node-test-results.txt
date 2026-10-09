@@ -1,124 +1,176 @@
+
+> openchamber-tps@1.2.0 test
+> node --test tests/*.test.mjs
+
 TAP version 13
 # Subtest: origin validation rejects credentials, paths, non-http schemes and query strings
 ok 1 - origin validation rejects credentials, paths, non-http schemes and query strings
   ---
-  duration_ms: 1.142908
+  duration_ms: 1.896886
   type: 'test'
   ...
 # Subtest: login uses official endpoint and keeps port-scoped cookie in memory
 ok 2 - login uses official endpoint and keeps port-scoped cookie in memory
   ---
-  duration_ms: 41.35632
+  duration_ms: 55.833364
   type: 'test'
   ...
 # Subtest: wrong password is not retried automatically
 ok 3 - wrong password is not retried automatically
   ---
-  duration_ms: 90.191611
+  duration_ms: 102.299576
   type: 'test'
   ...
 # Subtest: origin switching cancels pending login and drops all credentials
 ok 4 - origin switching cancels pending login and drops all credentials
   ---
-  duration_ms: 34.138175
+  duration_ms: 34.810587
   type: 'test'
   ...
 # Subtest: a login redirect never receives credentials at its destination
 ok 5 - a login redirect never receives credentials at its destination
   ---
-  duration_ms: 7.209527
+  duration_ms: 6.968414
   type: 'test'
   ...
 # Subtest: 429 prevents a second outbound login while Retry-After is active
 ok 6 - 429 prevents a second outbound login while Retry-After is active
   ---
-  duration_ms: 10.588496
+  duration_ms: 4.648823
   type: 'test'
   ...
 # Subtest: session-cookie parsing accepts canonical names only and respects Secure/expiry
 ok 7 - session-cookie parsing accepts canonical names only and respects Secure/expiry
   ---
-  duration_ms: 0.880814
+  duration_ms: 1.090098
   type: 'test'
   ...
 # Subtest: SDK hello/ready/session and real v1 resize envelope
 ok 8 - SDK hello/ready/session and real v1 resize envelope
   ---
-  duration_ms: 2.842002
+  duration_ms: 2.470351
   type: 'test'
   ...
 # Subtest: service requests accept matching parent responses only
 ok 9 - service requests accept matching parent responses only
   ---
-  duration_ms: 1.793225
+  duration_ms: 2.189332
   type: 'test'
   ...
 # Subtest: rolling estimate, reasoning, session filter, no tool-input inflation, and no ended double count
 ok 10 - rolling estimate, reasoning, session filter, no tool-input inflation, and no ended double count
   ---
-  duration_ms: 2.85408
+  duration_ms: 3.453725
   type: 'test'
   ...
 # Subtest: real settled tokens, duplicate settlement, calibration, and finished-turn average
 ok 11 - real settled tokens, duplicate settlement, calibration, and finished-turn average
   ---
-  duration_ms: 0.552761
+  duration_ms: 0.95528
   type: 'test'
   ...
 # Subtest: waits and long tool gaps are excluded; session changes reset state
 ok 12 - waits and long tool gaps are excluded; session changes reset state
   ---
-  duration_ms: 0.460311
+  duration_ms: 0.911176
   type: 'test'
   ...
 # Subtest: SSE accepts split CRLF, multiline data, Unicode chunks and wrapped events
 ok 13 - SSE accepts split CRLF, multiline data, Unicode chunks and wrapped events
   ---
-  duration_ms: 0.762777
+  duration_ms: 0.985462
   type: 'test'
   ...
 # Subtest: SSE ignores malformed JSON and bounds frame size
 ok 14 - SSE ignores malformed JSON and bounds frame size
   ---
-  duration_ms: 0.66491
+  duration_ms: 1.001934
   type: 'test'
   ...
 # Subtest: protected server: 401 -> manual login -> authenticated SSE -> TPS; no credential leaks
 ok 15 - protected server: 401 -> manual login -> authenticated SSE -> TPS; no credential leaks
   ---
-  duration_ms: 2391.49394
+  duration_ms: 2465.932314
   type: 'test'
   ...
 # Subtest: unprotected servers still stream without any login request
 ok 16 - unprotected servers still stream without any login request
   ---
-  duration_ms: 137.003617
+  duration_ms: 174.491476
   type: 'test'
   ...
 # Subtest: changing server clears cookie; cross-origin login is refused
 ok 17 - changing server clears cookie; cross-origin login is refused
   ---
-  duration_ms: 180.549116
+  duration_ms: 281.199842
   type: 'test'
   ...
 # Subtest: stream redirects are not followed and no cookie reaches destination
 ok 18 - stream redirects are not followed and no cookie reaches destination
   ---
-  duration_ms: 128.870106
+  duration_ms: 195.674098
   type: 'test'
   ...
 # Subtest: clear login forgets the session; auth requests require service bearer
 ok 19 - clear login forgets the session; auth requests require service bearer
   ---
-  duration_ms: 154.70207
+  duration_ms: 306.875601
   type: 'test'
   ...
-1..19
-# tests 19
+# Subtest: active average is time-weighted, peak is retained, polling and idle add no observations
+ok 20 - active average is time-weighted, peak is retained, polling and idle add no observations
+  ---
+  duration_ms: 2.609265
+  type: 'test'
+  ...
+# Subtest: single chunks, clock reversal, long gaps and different messages do not invent generation time
+ok 21 - single chunks, clock reversal, long gaps and different messages do not invent generation time
+  ---
+  duration_ms: 0.934147
+  type: 'test'
+  ...
+# Subtest: stream telemetry excludes snapshots, other sessions, tools and explicitly short waits
+ok 22 - stream telemetry excludes snapshots, other sessions, tools and explicitly short waits
+  ---
+  duration_ms: 1.260657
+  type: 'test'
+  ...
+# Subtest: history is bounded and range filtering preserves cumulative active coordinates
+ok 23 - history is bounded and range filtering preserves cumulative active coordinates
+  ---
+  duration_ms: 0.310964
+  type: 'test'
+  ...
+# Subtest: numeric statistics persist by hashed origin/session; restart excludes downtime and stores no raw ids
+ok 24 - numeric statistics persist by hashed origin/session; restart excludes downtime and stores no raw ids
+  ---
+  duration_ms: 3.41294
+  type: 'test'
+  ...
+# Subtest: corrupt storage and write errors degrade safely; retention touches only numeric telemetry files
+ok 25 - corrupt storage and write errors degrade safely; retention touches only numeric telemetry files
+  ---
+  duration_ms: 6.009187
+  type: 'test'
+  ...
+# Subtest: service keeps A/B histories separate, continues background observed sessions, and requires bearer for new endpoints
+ok 26 - service keeps A/B histories separate, continues background observed sessions, and requires bearer for new endpoints
+  ---
+  duration_ms: 413.71367
+  type: 'test'
+  ...
+# Subtest: service restart restores average/peak/history without persisting UI credentials
+ok 27 - service restart restores average/peak/history without persisting UI credentials
+  ---
+  duration_ms: 511.401841
+  type: 'test'
+  ...
+1..27
+# tests 27
 # suites 0
-# pass 19
+# pass 27
 # fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 3143.298043
+# duration_ms 3606.240219

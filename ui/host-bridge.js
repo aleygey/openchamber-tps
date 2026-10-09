@@ -62,7 +62,7 @@
       onReady(listener) { ready.add(listener); if (context) listener(context); return () => ready.delete(listener); },
       onSession(listener) { sessions.add(listener); if (context) listener(context.session); return () => sessions.delete(listener); },
       async serviceRequest(payload) {
-        if (!['/watch', '/rate', '/auth/login', '/auth/clear', '/retry'].includes(payload.path)) throw new Error('Unexpected TPS service path.');
+        if (!['/watch', '/rate', '/auth/login', '/auth/clear', '/retry', '/history', '/stats/reset'].includes(payload.path)) throw new Error('Unexpected TPS service path.');
         const result = await send('service-request', payload);
         if (!isObject(result) || !Number.isInteger(result.status) || typeof result.body !== 'string') throw new Error('Invalid TPS service response.');
         return result;

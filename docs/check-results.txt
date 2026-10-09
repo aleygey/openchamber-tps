@@ -1,0 +1,5 @@
+
+> openchamber-tps@1.2.0 check
+> node scripts/check.mjs
+
+Manifest, classic-script assets and JavaScript syntax: OK

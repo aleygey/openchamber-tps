@@ -2,7 +2,7 @@
 import http from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import { AuthError, UiSessionAuth, normalizeOrigin } from './auth.js';
-import { Meter } from './meter.js';
+import { TrackedMeter, SessionStatistics, StatisticsStore, SESSION_LIMIT } from './statistics.js';
 import { SseParser } from './sse.js';
 
 const port = Number(process.env.OPENCHAMBER_SERVICE_PORT);
@@ -13,7 +13,11 @@ if (!Number.isInteger(port) || port < 1 || port > 65535 || !token) {
 }
 const expectedToken = Buffer.from(`Bearer ${token}`);
 const auth = new UiSessionAuth();
-const meter = new Meter();
+const store = new StatisticsStore({ directory: process.env.OPENCHAMBER_TPS_DATA_DIR });
+const meters = new Map();
+let meter = new TrackedMeter(null, new SessionStatistics());
+const saveTimer = setInterval(() => store.flush(), 5000);
+saveTimer.unref();
 let watch = null;
 let connection = 'idle';
 let lastError = null;
@@ -29,6 +33,7 @@ function stopStream() {
   retryTimer = null;
   controller?.abort(); controller = null;
   connection = 'idle';
+  for (const m of meters.values()) m.statistics.break();
 }
 function reconnect(message, code) {
   connection = 'error'; lastError = message; errorCode = code;
@@ -95,7 +100,16 @@ async function startStream() {
       return;
     }
     connection = 'live'; authRequired = false; retryDelay = 1000;
-    const parser = new SseParser(event => { if (stillCurrent()) meter.event(event); });
+    const parser = new SseParser(event => {
+      if (!stillCurrent()) return;
+      const e = event?.payload ?? event;
+      const p = e?.data ?? e?.properties;
+      const id = p?.sessionID ?? p?.form?.sessionID;
+      // The same global stream continues measuring previously opened sessions.
+      // Unvisited sessions are not silently collected.
+      const target = meters.get(id);
+      if (target) target.event(event);
+    });
     reader = response.body.getReader();
     while (stillCurrent()) {
       const { value, done } = await reader.read();
@@ -114,15 +128,34 @@ function applyWatch(origin, sessionId) {
   const changed = !watch || watch.origin !== origin || watch.sessionId !== sessionId;
   if (!changed) return false;
   const differentServer = !watch || watch.origin !== origin;
-  stopStream();
-  auth.setOrigin(origin);
+  if (differentServer) {
+    stopStream(); store.flush(); meters.clear();
+    auth.setOrigin(origin);
+  }
   watch = { origin, sessionId };
-  meter.reset(sessionId);
-  retryDelay = 1000;
-  if (differentServer) { authRequired = false; lastError = null; errorCode = null; }
-  if (authRequired) connection = 'auth-required';
-  else void startStream();
+  if (sessionId) {
+    const statistics = store.get(origin, sessionId);
+    meter = meters.get(sessionId);
+    if (!meter || meter.statistics !== statistics) meter = new TrackedMeter(sessionId, statistics);
+    meters.delete(sessionId); meters.set(sessionId, meter);
+    if (meters.size > SESSION_LIMIT) {
+      const oldest = meters.keys().next().value;
+      meters.get(oldest).statistics.break(); meters.delete(oldest);
+    }
+  } else meter = new TrackedMeter(null, new SessionStatistics());
+  // Switching chat on one server must not restart SSE or erase measurements.
+  if (differentServer) {
+    retryDelay = 1000; authRequired = false; lastError = null; errorCode = null;
+    void startStream();
+  }
   return true;
+}
+function selectedMeter(url) {
+  const id = url.searchParams.get('sessionId');
+  if (!id) return meter;
+  const result = meters.get(id);
+  if (!result) throw new AuthError(404, 'SESSION_NOT_WATCHED', 'Open this session before reading its statistics.');
+  return result;
 }
 function json(res, status, data) {
   if (res.destroyed || res.writableEnded) return;
@@ -150,9 +183,10 @@ function authorized(req) {
 const server = http.createServer(async (req, res) => {
   if (!authorized(req)) { json(res, 401, { error: 'unauthorized' }); return; }
   try {
-    const pathname = new URL(req.url ?? '/', 'http://127.0.0.1').pathname;
+    const url = new URL(req.url ?? '/', 'http://127.0.0.1');
+    const pathname = url.pathname;
     if (pathname === '/health' && req.method === 'GET') {
-      json(res, 200, { ok: true, version: '1.1.1-auth.1', pid: process.pid }); return;
+      json(res, 200, { ok: true, version: '1.2.0', pid: process.pid }); return;
     }
     if (pathname === '/watch' && req.method === 'POST') {
       const body = await readBody(req);
@@ -163,9 +197,25 @@ const server = http.createServer(async (req, res) => {
       json(res, 200, { ok: true, changed, connection, sessionId: id }); return;
     }
     if (pathname === '/rate' && req.method === 'GET') {
-      json(res, 200, { ...meter.rate(), connection, error: lastError, errorCode,
+      const target = selectedMeter(url);
+      json(res, 200, { ...target.rate(), sessionStats: target.statistics.summary(),
+        statisticsWarning: store.warning, connection, error: lastError, errorCode,
         origin: watch?.origin ?? null, authRequired, authenticated: auth.authenticated,
         authExpiresAt: auth.expiresAt, authRetryAfter: auth.retryAfter }); return;
+    }
+    if (pathname === '/history' && req.method === 'GET') {
+      const target = selectedMeter(url);
+      const windowMs = Number(url.searchParams.get('windowMs') ?? 0);
+      if (!Number.isFinite(windowMs) || windowMs < 0 || windowMs > 86400000) throw new AuthError(400, 'BAD_WINDOW', 'Invalid history window.');
+      json(res, 200, { origin: watch?.origin ?? null, sessionId: target.sessionId,
+        revision: target.statistics.revision, points: target.statistics.history(windowMs) }); return;
+    }
+    if (pathname === '/stats/reset' && req.method === 'POST') {
+      const body = await readBody(req);
+      if (!watch || body.origin !== watch.origin || !meters.has(body.sessionId)) throw new AuthError(409, 'SESSION_CHANGED', 'The session or server changed.');
+      const target = meters.get(body.sessionId);
+      target.statistics.reset();
+      store.flush(); json(res, 200, { ok: true }); return;
     }
     if (pathname === '/auth/login' && req.method === 'POST') {
       const body = await readBody(req);
@@ -205,7 +255,7 @@ server.headersTimeout = 10000;
 server.listen(port, '127.0.0.1');
 function shutdown() {
   if (closing) return;
-  closing = true; stopStream(); auth.clear();
+  closing = true; stopStream(); auth.clear(); clearInterval(saveTimer); store.flush();
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 1500).unref();
 }

@@ -1,10 +1,10 @@
 {
   "name": "openchamber-tps",
-  "version": "1.1.1-auth.1",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "license": "MIT",
-  "description": "Compact TPS meter with opt-in UI-password authentication. Based on herbkk/openchamber-tps feature/status-section.",
+  "description": "TPS meter with UI-password authentication, persistent per-session active average/peak and activity charts.",
   "openchamber": {
     "apiVersion": 1,
     "engines": {
@@ -20,7 +20,7 @@
       "statusSection": {
         "entry": "status/index.html",
         "title": "TPS",
-        "height": 64
+        "height": 240
       },
       "service": {
         "entry": "service/main.js",
