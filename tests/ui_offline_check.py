@@ -16,13 +16,14 @@ def guest(mode):
  html=(ROOT/f'{mode}/index.html').read_text()
  return html.replace('<link rel="stylesheet" href="../ui/style.css">','<style>'+css+'</style>').replace('<script src="../ui/host-bridge.js"></script>','<script>'+bridge+'</script>').replace('<script src="../ui/chart.js"></script>','<script>'+chart+'</script>').replace('<script src="../ui/app.js"></script>','<script>'+app+'</script>')
 HOST='''<!doctype html><meta charset="utf-8"><style>body{font:14px system-ui;padding:24px;background:#f5f5f5}iframe{display:block;width:340px;height:64px;border:1px solid #ddd}h1{font-size:16px}</style><h1>TPS · offline sandboxed UI fixture</h1><iframe id="guest" sandbox="allow-scripts"></iframe><script>
-const f=document.querySelector('#guest');let state={origin:null,sessionId:null,connection:'auth-required',authRequired:true,authenticated:false,authRetryAfter:0,error:null,eventsSeen:0,charsPerSecond:0,tokensPerSecond:0,charsPerToken:.25,busy:false,active:false};
+const f=document.querySelector('#guest');let state={origin:null,sessionId:null,connection:'auth-required',authRequired:true,authenticated:false,authRetryAfter:0,error:null,eventsSeen:0,charsPerSecond:0,tokensPerSecond:null,phase:'idle',charsPerToken:.25,busy:false,active:false};
 window.heightRequests=[];window.loginRequests=[];window.historyRequests=[];window.resetRequests=[];
 let history=[];
 const emptyStats=()=>({averageTps:null,peakTps:null,activeMs:0,observations:0,pointCount:0,revision:0});
 state.sessionStats=emptyStats();
 window.fixtureReset=()=>{state.authRequired=true;state.authenticated=false;state.connection='auth-required';};
-window.fixtureGenerate=()=>{state.busy=true;state.active=true;state.tokensPerSecond=65.4;state.charsPerSecond=261.6;state.eventsSeen++;state.sessionStats={averageTps:51.2,peakTps:92.8,activeMs:90000,observations:900,pointCount:91,revision:1};
+window.fixtureTool=()=>{state.phase='tool';state.active=false;state.tokensPerSecond=null;state.charsPerSecond=null;};
+window.fixtureGenerate=()=>{state.phase='generating';state.busy=true;state.active=true;state.tokensPerSecond=65.4;state.charsPerSecond=261.6;state.eventsSeen++;state.sessionStats={averageTps:51.2,peakTps:92.8,activeMs:90000,observations:900,pointCount:91,revision:1};
 history=Array.from({length:91},(_,i)=>({at:1791471600000+i*1000,activeMs:i*1000,tps:54+28*Math.sin(i/5),breakBefore:i===0||i===40||i===70}));};
 const theme={mode:'light',tokens:{background:'#fff',foreground:'#222',muted:'#666',border:'#ddd',elevated:'#f7f7f7',selection:'#eee',primary:'#41846b',font:'system-ui,sans-serif',errorText:'#a22'}};
 window.addEventListener('message',e=>{
@@ -32,7 +33,7 @@ window.addEventListener('message',e=>{
  if(m.type==='resize'){heightRequests.push(m.payload.height);f.style.height=m.payload.height+'px';send({type:'result',id:m.id,ok:true});return;}
  if(m.type==='service-request'){
   let status=200,body={ok:true};const p=m.payload;const data=p.body?JSON.parse(p.body):{};
-  if(p.path==='/watch'){state.origin=data.origin;state.sessionId=data.sessionId;state.tokensPerSecond=0;state.sessionStats=emptyStats();history=[];}
+  if(p.path==='/watch'){state.origin=data.origin;state.sessionId=data.sessionId;state.tokensPerSecond=null;state.phase='idle';state.active=false;state.sessionStats=emptyStats();history=[];}
   if(p.path==='/rate')body=state;
   if(p.path==='/history'){historyRequests.push(p.query);const windowMs=Number(p.query?.windowMs||0);body={origin:state.origin,sessionId:state.sessionId,points:history.filter(p=>!windowMs||p.activeMs>=state.sessionStats.activeMs-windowMs)};}
   if(p.path==='/stats/reset'){resetRequests.push(data);state.sessionStats=emptyStats();history=[];}
@@ -88,9 +89,18 @@ with sync_playwright() as p:
  assert page.evaluate('historyRequests.at(-1).windowMs')=='0'
  assert frame.locator('.chart-label').all_text_contents()[-2]=='0.0s'
  page.screenshot(path=str(OUT/'compact-live.png'))
+ page.evaluate('fixtureTool()');page.wait_for_timeout(600)
+ assert frame.locator('#badge').inner_text()=='执行工具'
+ assert frame.locator('#value').inner_text()=='—'
+ assert frame.locator('#average-value').inner_text()=='≈ 51.2'
+ assert frame.locator('#peak-value').inner_text()=='≈ 92.8'
+ page.screenshot(path=str(OUT/'compact-tool.png'))
+ page.evaluate('fixtureGenerate()');page.wait_for_timeout(400)
+ assert frame.locator('#value').inner_text()=='≈ 65.4'
  page.evaluate("setSession('other-session')");page.wait_for_timeout(400)
  assert frame.locator('#auth').is_hidden()
- assert frame.locator('#value').inner_text()=='≈ 0.0'
+ assert frame.locator('#value').inner_text()=='—'
+ assert frame.locator('#badge').inner_text()=='空闲'
  assert frame.locator('#average-value').inner_text()=='—'
  assert frame.locator('.chart-line').count()==0
  page.eval_on_selector('#guest', '(el, html)=>{el.style.height="700px";el.style.width="480px";el.srcdoc=html}', guest('panel'))
@@ -116,4 +126,4 @@ with sync_playwright() as p:
  assert frame.locator('#average-value').inner_text()=='—'
  assert not errors, errors
  browser.close()
- print('PASS: offline sandboxed iframe; compact/form/HTTP consent/login/average/peak/segmented-chart/hover/range/fold/height/session-switch/full-panel/logout/wrong-password/relogin/confirmed-reset. Zero uncaught JS errors. Origin and host responses are mock fixtures.')
+ print('PASS: offline sandboxed iframe; compact/form/HTTP consent/login/average/peak/segmented-chart/hover/range/fold/height/session-switch/full-panel/logout/wrong-password/relogin/confirmed-reset/tool-pause-preserves-statistics/nullable-rate. Zero uncaught JS errors. Origin and host responses are mock fixtures.')

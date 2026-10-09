@@ -18,9 +18,13 @@ test('protected server: 401 -> manual login -> authenticated SSE -> TPS; no cred
   remote.send(event('session.execution.started', { sessionID: 'ses-test' }));
   remote.send(event('session.text.delta', { sessionID: 'ses-test', assistantMessageID: 'msg-a', ordinal: 0, delta: 'A'.repeat(100) }));
   remote.send(event('session.text.delta', { sessionID: 'ses-other', assistantMessageID: 'msg-x', delta: 'X'.repeat(999) }));
-  await waitFor(async () => (await s.rate()).chars === 100);
+  await waitFor(async () => (await s.rate()).eventsSeen >= 2);
+  assert.equal((await s.rate()).tokensPerSecond, null, 'first chunk is not a timed sample');
+  await delay(350);
+  remote.send(event('session.text.delta', { sessionID: 'ses-test', assistantMessageID: 'msg-a', ordinal: 0, delta: 'A'.repeat(100) }));
+  await waitFor(async () => (await s.rate()).tokensPerSecond > 0);
   const rate = await s.rate();
-  assert.equal(rate.tokensPerSecond, 5); assert.equal(rate.authenticated, true);
+  assert.ok(rate.tokensPerSecond > 0 && rate.tokensPerSecond < 150); assert.equal(rate.authenticated, true);
   assert.equal(JSON.stringify(rate).includes(remote.password), false); assert.equal(JSON.stringify(rate).includes(remote.secret), false);
   assert.equal(s.output().includes(remote.password), false); assert.equal(s.output().includes(remote.secret), false);
   // A new session on the same server reuses the session cookie, but clears counts.

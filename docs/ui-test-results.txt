@@ -1,2 +1,2 @@
 auth check 请先确认上面的 HTTP 服务器地址。
-PASS: offline sandboxed iframe; compact/form/HTTP consent/login/average/peak/segmented-chart/hover/range/fold/height/session-switch/full-panel/logout/wrong-password/relogin/confirmed-reset. Zero uncaught JS errors. Origin and host responses are mock fixtures.
+PASS: offline sandboxed iframe; compact/form/HTTP consent/login/average/peak/segmented-chart/hover/range/fold/height/session-switch/full-panel/logout/wrong-password/relogin/confirmed-reset/tool-pause-preserves-statistics/nullable-rate. Zero uncaught JS errors. Origin and host responses are mock fixtures.

@@ -4,13 +4,13 @@
   const $ = id => document.getElementById(id);
   const compact = document.body.dataset.mode === 'status';
   const en = {
-    average: 'Active average', peak: 'Peak (5s)', chart: 'Activity chart', axis: 'Cumulative active time',
-    active: 'Active ', empty: 'Waiting for streamed output', recent60: 'Last 60s', recent300: 'Last 5m', all: 'Retained history',
-    historyNote: 'Pauses excluded · dashed line: active average', reset: 'Reset statistics', confirmReset: 'Confirm reset',
+    average: 'Generation average', peak: 'Generation peak', chart: 'Generation chart', axis: 'Cumulative generation time',
+    active: 'Generated ', empty: 'Waiting for streamed output', recent60: 'Last 60s', recent300: 'Last 5m', all: 'Retained history',
+    historyNote: 'Tool runtime excluded · dashed line: generation average', reset: 'Reset statistics', confirmReset: 'Confirm reset',
     persistenceWarning: 'Statistics could not be saved/loaded; current readings still work.',
-    averageHint: 'Time-weighted average of rolling-5s TPS during observed generation intervals. Estimated; not total task throughput.',
-    peakHint: 'Highest rolling-5s TPS observed during streaming; not a single-token spike.',
-    connecting: 'connecting', live: 'idle', generating: 'generating', error: 'disconnected',
+    averageHint: 'Timed generated-token estimates / matching generation durations. Tool execution, first-chunk wait and idle time are excluded.',
+    peakHint: 'Highest rate in a generation window of 0.25 to 5 seconds. Shorter windows are noisier; not an instantaneous token peak.',
+    connecting: 'connecting', live: 'idle', generating: 'generating', tool: 'running tool', sampling: 'sampling', 'waiting-model': 'waiting for model', 'waiting-output': 'waiting for output', error: 'disconnected',
     auth: 'sign-in required', idle: 'no connection', permission: 'waiting for permission', question: 'waiting for answer',
     login: 'Sign in', signing: 'Signing in…', password: 'OpenChamber UI password',
     server: 'Sign in to: ', http: 'I trust this server address. HTTP is not encrypted; use HTTPS or an approved tunnel on untrusted networks.',
@@ -18,20 +18,20 @@
     authNeeded: 'Enter your OpenChamber UI password below. Do not disable server authentication.',
     noOrigin: 'This embedded/relay view has no usable server origin. Use a direct connection.',
     service: 'Approve Run a local service in Settings → Extensions.', disabled: 'The extension is paused in Settings → Extensions.',
-    retry: 'Retry', forget: 'Forget TPS login', avg: 'Last turn average', chars: 'Characters/s',
+    retry: 'Retry', forget: 'Forget TPS login', avg: 'Last turn generation average', chars: 'Characters/s',
     ratio: 'Estimated tokens/character', total: 'Session generated tokens', events: 'Events seen', state: 'Connection',
-    none: '—', estimate: 'Live TPS is a rolling 5-second character-based estimate, including reasoning. Token counts settle at step end.',
+    none: '—', estimate: 'Only observed LLM generation counts: text, reasoning and tool-input JSON. Tool runtime/output and first-chunk wait do not. Estimates, not provider decode benchmarks.',
     verifyHttp: 'Confirm the HTTP server address first.', wrong: 'Password rejected. Please check the server UI password.',
     limited: 'Too many login attempts. Try again in ', seconds: ' seconds.', failed: 'Login failed. ',
   };
   const zh = {
-    ...en, average: '活跃平均', peak: '最高（5秒）', chart: '活跃曲线', axis: '累计活跃时间',
-    active: '活跃 ', empty: '等待生成输出', recent60: '近60秒', recent300: '近5分钟', all: '全部保留',
-    historyNote: '不计等待 · 虚线为活跃平均', reset: '重置本会话统计', confirmReset: '确认重置',
+    ...en, average: '生成平均', peak: '生成峰值', chart: '生成曲线', axis: '累计生成时间',
+    active: '生成 ', empty: '等待生成输出', recent60: '近60秒', recent300: '近5分钟', all: '全部保留',
+    historyNote: '不计工具运行和首字等待 · 虚线为生成平均', reset: '重置本会话统计', confirmReset: '确认重置',
     persistenceWarning: '统计存储读写失败；当前数值仍可使用。',
-    averageHint: '仅在观测到连续生成输出的时段，对5秒滚动TPS做时间加权平均。为估算值，不是整个任务的吞吐量。',
-    peakHint: '已观测到的5秒滚动TPS最高值，不是单个Token的瞬时尖峰。',
-    connecting: '连接中', live: '空闲', generating: '生成中', error: '未连接',
+    averageHint: '已计时的生成 Token 估算量 ÷ 对应生成时长。不含工具运行、首个片段等待和空闲时间，不再平均固定五秒的读数。',
+    peakHint: '生成窗口为0.25至5秒，分母使用实测时长；短窗口波动较大，不是单Token瞬时峰值。',
+    connecting: '连接中', live: '空闲', generating: '生成中', tool: '执行工具', sampling: '采样中', 'waiting-model': '等待模型', 'waiting-output': '等待输出', error: '未连接',
     auth: '需要登录', idle: '未连接', permission: '等待授权', question: '等待回答',
     login: '登录', signing: '登录中…', password: 'OpenChamber 访问密码', server: '登录到：',
     http: '我确认这是自己的服务器。HTTP 不加密；非可信网络应使用 HTTPS 或经批准的隧道。',
@@ -39,9 +39,9 @@
     authNeeded: '在下方输入 OpenChamber 访问密码，无需关闭服务器认证。',
     noOrigin: '此中继/嵌入页面无法确定服务器地址，请使用直接连接。',
     service: '请在 设置 → 扩展 中批准“运行本地服务”。', disabled: '扩展已在设置中暂停。',
-    retry: '重试', forget: '清除 TPS 登录', avg: '上一轮平均速率', chars: '每秒字符数',
+    retry: '重试', forget: '清除 TPS 登录', avg: '上一轮生成平均', chars: '每秒字符数',
     ratio: '估算 Token/字符', total: '会话生成 Token', events: '收到的事件', state: '连接状态',
-    estimate: '实时 TPS 是最近 5 秒的字符估算，包含推理文本；实际 Token 数在每个步骤结束时结算。',
+    estimate: '只计文本、推理和工具参数的生成；不计工具运行、命令回显和首字等待。为客户端估算，非模型服务端解码基准。',
     verifyHttp: '请先确认上面的 HTTP 服务器地址。', wrong: '密码不正确，请检查 OpenChamber 的访问密码。',
     limited: '登录尝试过多，请等待 ', seconds: ' 秒后再试。', failed: '登录失败：',
   };
@@ -95,11 +95,11 @@
     const live = rate?.connection === 'live';
     const tps = live && Number.isFinite(rate.tokensPerSecond) ? Math.max(0, rate.tokensPerSecond) : 0;
     peak = Math.max(tps, peak * 0.99);
-    $('value').textContent = live ? `≈ ${tps.toFixed(1)}` : '—';
+    $('value').textContent = live && Number.isFinite(rate.tokensPerSecond) ? `≈ ${tps.toFixed(1)}` : '—';
     $('fill').style.transform = `scaleX(${peak > .05 && live ? Math.min(1, tps / peak) : 0})`;
     let label = rate ? (copy[rate.connection] || copy.error) : copy.connecting;
     if (rate?.authRequired) label = copy.auth;
-    else if (live) label = rate.waiting ? copy[rate.waiting] : rate.active && rate.busy ? copy.generating : copy.live;
+    else if (live) label = (rate.phase === 'idle' ? copy.live : copy[rate.phase]) || (rate.waiting ? copy[rate.waiting] : rate.active ? copy.generating : copy.live);
     $('badge').textContent = label;
     $('notice').textContent = transient || (rate?.authRequired ? copy.authNeeded : rate?.error || '');
     const needsLogin = Boolean(rate?.authRequired);
@@ -114,8 +114,8 @@
       $('session').textContent = sessionTitle || sessionId || '';
       const avg = rate?.lastTurn;
       const rows = [
-        [copy.avg, avg ? `${avg.source === 'estimate' ? '≈ ' : ''}${avg.tokensPerSecond.toFixed(1)} tok/s` : '—'],
-        [copy.chars, rate ? rate.charsPerSecond.toFixed(1) : '—'],
+        [copy.avg, Number.isFinite(avg?.tokensPerSecond) ? `${avg.source === 'estimate' ? '≈ ' : ''}${avg.tokensPerSecond.toFixed(1)} tok/s` : '—'],
+        [copy.chars, Number.isFinite(rate?.charsPerSecond) ? rate.charsPerSecond.toFixed(1) : '—'],
         [copy.ratio, rate ? rate.charsPerToken.toFixed(3) : '—'],
         [copy.total, rate?.sessionUsage?.generated?.toLocaleString() ?? '—'],
         [copy.events, String(rate?.eventsSeen ?? 0)], [copy.state, label],

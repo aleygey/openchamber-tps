@@ -33,9 +33,10 @@ function stopStream() {
   retryTimer = null;
   controller?.abort(); controller = null;
   connection = 'idle';
-  for (const m of meters.values()) m.statistics.break();
+  for (const m of meters.values()) m.pause();
 }
 function reconnect(message, code) {
+  for (const m of meters.values()) m.pause();
   connection = 'error'; lastError = message; errorCode = code;
   if (!watch || authRequired || retryTimer || closing) return;
   const delay = retryDelay;
@@ -140,7 +141,7 @@ function applyWatch(origin, sessionId) {
     meters.delete(sessionId); meters.set(sessionId, meter);
     if (meters.size > SESSION_LIMIT) {
       const oldest = meters.keys().next().value;
-      meters.get(oldest).statistics.break(); meters.delete(oldest);
+      meters.get(oldest).pause(); meters.delete(oldest);
     }
   } else meter = new TrackedMeter(null, new SessionStatistics());
   // Switching chat on one server must not restart SSE or erase measurements.
@@ -186,7 +187,7 @@ const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1');
     const pathname = url.pathname;
     if (pathname === '/health' && req.method === 'GET') {
-      json(res, 200, { ok: true, version: '1.2.0', pid: process.pid }); return;
+      json(res, 200, { ok: true, version: '1.2.1', pid: process.pid }); return;
     }
     if (pathname === '/watch' && req.method === 'POST') {
       const body = await readBody(req);
@@ -214,7 +215,7 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       if (!watch || body.origin !== watch.origin || !meters.has(body.sessionId)) throw new AuthError(409, 'SESSION_CHANGED', 'The session or server changed.');
       const target = meters.get(body.sessionId);
-      target.statistics.reset();
+      target.resetStatistics();
       store.flush(); json(res, 200, { ok: true }); return;
     }
     if (pathname === '/auth/login' && req.method === 'POST') {

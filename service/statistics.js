@@ -4,116 +4,90 @@ import os from 'node:os';
 import path from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
 import { Meter } from './meter.js';
+import { MIN_SAMPLE_MS } from './generation.js';
 
 export const HISTORY_LIMIT = 1800;
 export const SESSION_LIMIT = 100;
-const GAP_MS = 1000;
 const finite = n => typeof n === 'number' && Number.isFinite(n) && n >= 0;
 const round = n => Math.round(n * 1000) / 1000;
 
-/** Average is the time-weighted mean of observed rolling-5s TPS, NOT a
- * provider decode benchmark or an arithmetic mean of UI polling samples.
- * Only adjacent streamed chunks <=1s apart in the same assistant message
- * contribute time. Explicit pauses break the interval, including short waits.
+/** Sum timed generated-token estimates / sum their matching durations.
+ * Do not average wall-clock rolling rates, and do not infer time from polls.
+ * The generation estimator alone supplies explicitly delimited intervals.
  */
 export class SessionStatistics {
   constructor(saved = null, changed = () => {}, limit = HISTORY_LIMIT) {
-    this.changed = changed;
-    this.limit = limit;
-    this.reset();
+    this.changed = changed; this.limit = limit; this.reset();
     if (saved) this.restore(saved);
   }
   reset() {
-    this.activeMs = 0; this.area = 0; this.peak = 0;
+    this.activeMs = 0; this.generatedTokens = 0; this.peak = 0; this.peakSamples = 0;
     this.observations = 0; this.since = null; this.updatedAt = null;
-    this.points = []; this.droppedPoints = 0; this.revision = 0;
-    this.previous = null;
+    this.points = []; this.droppedPoints = 0; this.revision = 0; this.needsBreak = true;
     this.changed();
   }
-  break() { this.previous = null; }
-  observe(at, tps, messageId) {
-    if (!finite(at) || !finite(tps)) return;
-    const previous = this.previous;
-    const gap = previous ? at - previous.at : 0;
-    const joined = Boolean(previous && previous.messageId === messageId && gap >= 0 && gap <= GAP_MS);
-    if (joined && gap > 0) {
-      this.activeMs += gap;
-      this.area += gap * (previous.tps + tps) / 2;
+  break() { this.needsBreak = true; }
+  observe({ at, from, elapsedMs, tokens, tps, segmentStart = false }) {
+    if (![at, from, elapsedMs, tokens].every(finite) || elapsedMs <= 0 || at < from) return;
+    this.activeMs += elapsedMs; this.generatedTokens += tokens;
+    this.observations++; this.since ??= from; this.updatedAt = at;
+    if (segmentStart) this.needsBreak = true;
+    if (finite(tps)) {
+      this.peak = Math.max(this.peak, tps); this.peakSamples++;
+      if (this.needsBreak) this.points.push({ at: from, activeMs: this.activeMs - elapsedMs, tps: round(tps), breakBefore: true });
+      const point = { at, activeMs: this.activeMs, tps: round(tps), breakBefore: false };
+      const last = this.points.at(-1);
+      if (last && !last.breakBefore && Math.floor(last.activeMs / 1000) === Math.floor(point.activeMs / 1000)) this.points[this.points.length - 1] = point;
+      else this.points.push(point);
+      this.needsBreak = false;
     }
-    this.peak = Math.max(this.peak, tps);
-    this.observations++;
-    this.since ??= at;
-    this.updatedAt = at;
-    this.previous = { at, tps, messageId };
-    // Keep segment starts. Within a segment retain roughly one sample per
-    // active second plus its live endpoint. Statistics use EVERY observation.
-    const point = { at, activeMs: this.activeMs, tps: round(tps), breakBefore: !joined };
-    const last = this.points.at(-1);
-    if (joined && last && !last.breakBefore && Math.floor(last.activeMs / 1000) === Math.floor(point.activeMs / 1000)) {
-      this.points[this.points.length - 1] = point;
-    } else this.points.push(point);
     if (this.points.length > this.limit) {
       const count = this.points.length - this.limit;
-      this.points.splice(0, count); this.droppedPoints += count;
-      this.points[0].breakBefore = true;
+      this.points.splice(0, count); this.droppedPoints += count; this.points[0].breakBefore = true;
     }
-    this.revision++;
-    this.changed();
+    this.revision++; this.changed();
   }
   summary() {
-    return {
-      averageTps: this.activeMs > 0 ? this.area / this.activeMs : null,
-      peakTps: this.observations ? this.peak : null,
-      activeMs: this.activeMs, observations: this.observations,
-      recordedSince: this.since, updatedAt: this.updatedAt,
-      pointCount: this.points.length, droppedPoints: this.droppedPoints,
-      revision: this.revision, method: 'active-time-weighted-rolling-5s',
-    };
+    return { averageTps: this.activeMs >= MIN_SAMPLE_MS ? this.generatedTokens * 1000 / this.activeMs : null,
+      peakTps: this.peakSamples ? this.peak : null, activeMs: this.activeMs, generatedTokens: this.generatedTokens,
+      observations: this.observations, recordedSince: this.since, updatedAt: this.updatedAt,
+      pointCount: this.points.length, droppedPoints: this.droppedPoints, revision: this.revision,
+      method: 'llm-generation-intervals-v2' };
   }
   history(windowMs = 0) {
     const start = windowMs > 0 ? Math.max(0, this.activeMs - windowMs) : 0;
     return this.points.filter(p => p.activeMs >= start).map(p => ({ ...p }));
   }
   serialize() {
-    return { schema: 1, activeMs: this.activeMs, area: this.area, peak: this.peak,
-      observations: this.observations, since: this.since, updatedAt: this.updatedAt,
+    return { schema: 2, activeMs: this.activeMs, generatedTokens: this.generatedTokens, peak: this.peak,
+      peakSamples: this.peakSamples, observations: this.observations, since: this.since, updatedAt: this.updatedAt,
       droppedPoints: this.droppedPoints, revision: this.revision, points: this.points };
   }
   restore(data) {
-    const names = ['activeMs', 'area', 'peak', 'observations', 'droppedPoints', 'revision'];
-    if (data.schema !== 1 || !names.every(k => finite(data[k])) ||
+    const names = ['activeMs', 'generatedTokens', 'peak', 'peakSamples', 'observations', 'droppedPoints', 'revision'];
+    if (data.schema !== 2 || !names.every(k => finite(data[k])) ||
         ![data.since, data.updatedAt].every(v => v === null || finite(v)) ||
         !Array.isArray(data.points) || data.points.length > HISTORY_LIMIT) throw new Error('Invalid statistics');
     let previousX = -1;
     for (const p of data.points) {
-      if (!p || !finite(p.at) || !finite(p.tps) || !finite(p.activeMs) ||
-          p.activeMs < previousX || p.activeMs > data.activeMs || typeof p.breakBefore !== 'boolean') throw new Error('Invalid history');
+      if (!p || !finite(p.at) || !finite(p.tps) || !finite(p.activeMs) || p.activeMs < previousX ||
+          p.activeMs > data.activeMs || typeof p.breakBefore !== 'boolean') throw new Error('Invalid history');
       previousX = p.activeMs;
     }
     for (const name of names) this[name] = data[name];
     this.since = data.since; this.updatedAt = data.updatedAt;
     this.points = data.points.slice(-this.limit).map(p => ({ at: p.at, activeMs: p.activeMs, tps: p.tps, breakBefore: p.breakBefore }));
-    this.previous = null; // Never count process downtime as generation.
+    this.needsBreak = true;
   }
 }
 
-/** Keep the proven 1.1.1 meter/auth behavior; add telemetry only for live
- * deltas. Full '*ended' snapshots have no trustworthy generation timing.
- */
 export class TrackedMeter extends Meter {
-  constructor(sessionId, statistics) { super(); this.reset(sessionId); this.statistics = statistics; }
-  event(raw, now = Date.now()) {
-    const e = raw?.payload ?? raw;
-    const p = e?.data ?? e?.properties;
-    const matches = this.watched(p?.sessionID ?? p?.form?.sessionID);
-    const type = typeof e?.type === 'string' ? e.type : '';
-    if (matches && (/^session\.(execution\.|step\.|tool\.|status$|idle$)/.test(type) || /^(permission|question|form)\./.test(type))) this.statistics.break();
-    super.event(raw, now);
-    if (matches && (type === 'session.text.delta' || type === 'session.reasoning.delta') &&
-        typeof p?.delta === 'string' && p.delta.length && typeof p?.assistantMessageID === 'string' && p.assistantMessageID && !this.waiting()) {
-      this.statistics.observe(now, super.rate(now).tokensPerSecond, p.assistantMessageID);
-    }
+  constructor(sessionId, statistics) {
+    super(); this.reset(sessionId); this.statistics = statistics;
+    this.generation.onInterval = interval => this.statistics.observe(interval);
+    this.generation.onBreak = () => this.statistics.break();
   }
+  resetStatistics() { this.pause(); this.statistics.reset(); }
 }
 
 /** One hashed filename per (server origin, session); bounded private files.
@@ -121,7 +95,7 @@ export class TrackedMeter extends Meter {
  * Failure to persist degrades to in-memory statistics, not broken chat/auth.
  */
 export class StatisticsStore {
-  constructor({ directory = path.join(os.homedir(), '.local', 'share', 'openchamber-tps', 'metrics-v1'), maxSessions = SESSION_LIMIT } = {}) {
+  constructor({ directory = path.join(os.homedir(), '.local', 'share', 'openchamber-tps', 'metrics-v2'), maxSessions = SESSION_LIMIT } = {}) {
     this.directory = directory; this.maxSessions = maxSessions;
     this.cache = new Map(); this.dirty = new Set(); this.warning = null;
   }
