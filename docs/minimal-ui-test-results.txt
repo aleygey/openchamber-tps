@@ -1,0 +1,4 @@
+PASS: sandbox allow-scripts; HTTP consent, password and Enter login; no credential persistence.
+PASS: 260/340/480px minimal readout + sparkline, 90-125px default height, details, range, hover, light/dark.
+PASS: tools freeze chart and statistics; stale polls blank the rate; session switch, resume and reset.
+PASS: full panel; no uncaught JavaScript errors. Synthetic fixture, not a real OpenChamber installation.

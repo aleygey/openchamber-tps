@@ -187,7 +187,7 @@ const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1');
     const pathname = url.pathname;
     if (pathname === '/health' && req.method === 'GET') {
-      json(res, 200, { ok: true, version: '1.2.1', pid: process.pid }); return;
+      json(res, 200, { ok: true, version: '1.3.0', pid: process.pid }); return;
     }
     if (pathname === '/watch' && req.method === 'POST') {
       const body = await readBody(req);

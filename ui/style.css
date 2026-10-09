@@ -64,3 +64,33 @@ body[data-mode=panel] #chart { height: 220px; }
 body[data-mode=panel] .summary-row { margin-top: 16px; gap: 32px; }
 body[data-mode=panel] .summary-row strong { font-size: 22px; }
 .actions { flex-wrap: wrap; }
+/* 1.3.0: default is a readout, a state dot and a sparkline. */
+body[data-mode=status] { padding: 6px 10px; }
+body[data-mode=status] .value { font-size: 26px; font-weight: 550; letter-spacing: -.6px; }
+.readout { min-height: 32px; gap: 6px; }
+.badge { display: inline-block; width: 7px; height: 7px; min-width: 7px; border-radius: 50%; background: var(--oc-muted); margin-left: auto; overflow: visible; }
+.badge[data-state=live] { background: var(--oc-primary); }
+.badge[data-state=tool] { background: var(--oc-info, #587fa8); }
+.badge[data-state=warning] { background: var(--oc-warning, #aa8546); }
+.more, #chart-toggle { border: 0; padding: 0; width: 24px; height: 28px; background: transparent; font-size: 20px; color: var(--oc-muted); line-height: 1; }
+#chart-toggle::before { content: none; }
+.metrics { margin-top: 3px; }
+body[data-mode=status] #chart { height: 56px; }
+body[data-mode=status] #extra { border-top: 1px solid var(--oc-border); margin-top: 8px; padding-top: 8px; }
+.summary-row { gap: 16px; }
+.summary-row > div { display: flex; flex-direction: column; gap: 1px; }
+.metric-label { font-size: 10px; }
+.summary-row strong { font-size: 14px; }
+.chart-line { stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.chart-empty { stroke: var(--oc-border); stroke-width: 1; opacity: .45; }
+.chart-pause { stroke: var(--oc-muted); opacity: .45; stroke-width: 1; }
+.chart-bridge { stroke: var(--oc-primary); stroke-width: 1; stroke-dasharray: 2 3; opacity: .4; }
+#history-note { margin-top: 5px; }
+.chart-options { margin-top: 6px; }
+.actions { gap: 5px; margin-top: 8px; }
+.actions button { font-size: 10px; padding: 3px 6px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.badge:focus-visible, select:focus-visible { outline: 2px solid var(--oc-primary); outline-offset: 3px; }
+body[data-mode=status] #extra .hint { margin: 3px 0; }
+#chart-toggle[aria-expanded]::before { content: none; }
+.more { flex-shrink: 0; }

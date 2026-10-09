@@ -4,12 +4,12 @@
   const $ = id => document.getElementById(id);
   const compact = document.body.dataset.mode === 'status';
   const en = {
-    average: 'Generation average', peak: 'Generation peak', chart: 'Generation chart', axis: 'Cumulative generation time',
+    average: 'Average', peak: 'Peak', chart: 'Activity chart', axis: 'Cumulative generation time',
     active: 'Generated ', empty: 'Waiting for streamed output', recent60: 'Last 60s', recent300: 'Last 5m', all: 'Retained history',
-    historyNote: 'Tool runtime excluded · dashed line: generation average', reset: 'Reset statistics', confirmReset: 'Confirm reset',
+    historyNote: 'Display smoothing only; pause ticks omit waiting time', reset: 'Reset statistics', confirmReset: 'Confirm reset',
     persistenceWarning: 'Statistics could not be saved/loaded; current readings still work.',
-    averageHint: 'Timed generated-token estimates / matching generation durations. Tool execution, first-chunk wait and idle time are excluded.',
-    peakHint: 'Highest rate in a generation window of 0.25 to 5 seconds. Shorter windows are noisier; not an instantaneous token peak.',
+    averageHint: 'Timed token estimates / matching duration; unsmoothed, tool runtime excluded.',
+    peakHint: 'Highest unsmoothed 0.25–5s generation-window estimate.',
     connecting: 'connecting', live: 'idle', generating: 'generating', tool: 'running tool', sampling: 'sampling', 'waiting-model': 'waiting for model', 'waiting-output': 'waiting for output', error: 'disconnected',
     auth: 'sign-in required', idle: 'no connection', permission: 'waiting for permission', question: 'waiting for answer',
     login: 'Sign in', signing: 'Signing in…', password: 'OpenChamber UI password',
@@ -18,19 +18,19 @@
     authNeeded: 'Enter your OpenChamber UI password below. Do not disable server authentication.',
     noOrigin: 'This embedded/relay view has no usable server origin. Use a direct connection.',
     service: 'Approve Run a local service in Settings → Extensions.', disabled: 'The extension is paused in Settings → Extensions.',
-    retry: 'Retry', forget: 'Forget TPS login', avg: 'Last turn generation average', chars: 'Characters/s',
+    retry: 'Retry', forget: 'Forget TPS login', avg: 'Last turn average', chars: 'Characters/s',
     ratio: 'Estimated tokens/character', total: 'Session generated tokens', events: 'Events seen', state: 'Connection',
-    none: '—', estimate: 'Only observed LLM generation counts: text, reasoning and tool-input JSON. Tool runtime/output and first-chunk wait do not. Estimates, not provider decode benchmarks.',
+    none: '—', estimate: 'Displayed rate and chart are smoothed estimates. Average and peak use unsmoothed timed generation. Tool runtime is excluded.',
     verifyHttp: 'Confirm the HTTP server address first.', wrong: 'Password rejected. Please check the server UI password.',
     limited: 'Too many login attempts. Try again in ', seconds: ' seconds.', failed: 'Login failed. ',
   };
   const zh = {
-    ...en, average: '生成平均', peak: '生成峰值', chart: '生成曲线', axis: '累计生成时间',
+    ...en, average: '平均', peak: '峰值', chart: '活跃曲线', axis: '累计生成时间',
     active: '生成 ', empty: '等待生成输出', recent60: '近60秒', recent300: '近5分钟', all: '全部保留',
-    historyNote: '不计工具运行和首字等待 · 虚线为生成平均', reset: '重置本会话统计', confirmReset: '确认重置',
+    historyNote: '仅显示平滑；短竖线标记省略的等待', reset: '重置本会话统计', confirmReset: '确认重置',
     persistenceWarning: '统计存储读写失败；当前数值仍可使用。',
-    averageHint: '已计时的生成 Token 估算量 ÷ 对应生成时长。不含工具运行、首个片段等待和空闲时间，不再平均固定五秒的读数。',
-    peakHint: '生成窗口为0.25至5秒，分母使用实测时长；短窗口波动较大，不是单Token瞬时峰值。',
+    averageHint: '原始计时 Token 估算量 ÷ 生成时长；不含工具运行和首字等待，不使用平滑值。',
+    peakHint: '原始0.25至5秒生成窗口的最高估算值，不使用平滑值。',
     connecting: '连接中', live: '空闲', generating: '生成中', tool: '执行工具', sampling: '采样中', 'waiting-model': '等待模型', 'waiting-output': '等待输出', error: '未连接',
     auth: '需要登录', idle: '未连接', permission: '等待授权', question: '等待回答',
     login: '登录', signing: '登录中…', password: 'OpenChamber 访问密码', server: '登录到：',
@@ -39,9 +39,9 @@
     authNeeded: '在下方输入 OpenChamber 访问密码，无需关闭服务器认证。',
     noOrigin: '此中继/嵌入页面无法确定服务器地址，请使用直接连接。',
     service: '请在 设置 → 扩展 中批准“运行本地服务”。', disabled: '扩展已在设置中暂停。',
-    retry: '重试', forget: '清除 TPS 登录', avg: '上一轮生成平均', chars: '每秒字符数',
+    retry: '重试', forget: '清除 TPS 登录', avg: '上一轮平均速率', chars: '每秒字符数',
     ratio: '估算 Token/字符', total: '会话生成 Token', events: '收到的事件', state: '连接状态',
-    estimate: '只计文本、推理和工具参数的生成；不计工具运行、命令回显和首字等待。为客户端估算，非模型服务端解码基准。',
+    estimate: '数字与图形仅作显示平滑；平均、峰值使用未平滑的生成计时数据。不含工具运行，仍是客户端估算。',
     verifyHttp: '请先确认上面的 HTTP 服务器地址。', wrong: '密码不正确，请检查 OpenChamber 的访问密码。',
     limited: '登录尝试过多，请等待 ', seconds: ' 秒后再试。', failed: '登录失败：',
   };
@@ -57,7 +57,8 @@
   let started = false;
   let loggingIn = false;
   let rate = null;
-  let peak = 0;
+  const liveValue = new window.TPSPresentation.LiveValue();
+  let detailsOpen = !compact;
   let height = 0;
   let transient = '';
   let history = [];
@@ -93,14 +94,21 @@
   }
   function draw() {
     const live = rate?.connection === 'live';
-    const tps = live && Number.isFinite(rate.tokensPerSecond) ? Math.max(0, rate.tokensPerSecond) : 0;
-    peak = Math.max(tps, peak * 0.99);
-    $('value').textContent = live && Number.isFinite(rate.tokensPerSecond) ? `≈ ${tps.toFixed(1)}` : '—';
-    $('fill').style.transform = `scaleX(${peak > .05 && live ? Math.min(1, tps / peak) : 0})`;
+    const value = liveValue.read(transient ? null : rate, performance.now());
+    $('value').textContent = Number.isFinite(value) ? `≈ ${Math.round(value)}` : '—';
+    $('value').title = copy === zh ? '平滑估算；平均和峰值使用未平滑数据' : 'Smoothed estimate; average and peak use unsmoothed measurements';
     let label = rate ? (copy[rate.connection] || copy.error) : copy.connecting;
     if (rate?.authRequired) label = copy.auth;
-    else if (live) label = (rate.phase === 'idle' ? copy.live : copy[rate.phase]) || (rate.waiting ? copy[rate.waiting] : rate.active ? copy.generating : copy.live);
-    $('badge').textContent = label;
+    else if (transient) label = copy.error;
+    else if (live) label = (rate.phase === 'idle' ? copy.live : copy[rate.phase]) || copy.live;
+    if (live && rate?.phase === 'generating' && value === null) label = copy['waiting-output'];
+    const badge = $('badge');
+    badge.textContent = ''; badge.title = label; badge.setAttribute('aria-label', label);
+    badge.dataset.state = rate?.authRequired || transient || !live ? 'warning'
+      : rate?.phase === 'tool' ? 'tool' : Number.isFinite(value) ? 'live' : 'idle';
+    $('extra').hidden = !detailsOpen || Boolean(rate?.authRequired);
+    $('chart-toggle').setAttribute('aria-expanded', String(!$('extra').hidden));
+    $('chart-toggle').hidden = Boolean(rate?.authRequired);
     $('notice').textContent = transient || (rate?.authRequired ? copy.authNeeded : rate?.error || '');
     const needsLogin = Boolean(rate?.authRequired);
     $('auth').hidden = !needsLogin;
@@ -116,7 +124,7 @@
       const rows = [
         [copy.avg, Number.isFinite(avg?.tokensPerSecond) ? `${avg.source === 'estimate' ? '≈ ' : ''}${avg.tokensPerSecond.toFixed(1)} tok/s` : '—'],
         [copy.chars, Number.isFinite(rate?.charsPerSecond) ? rate.charsPerSecond.toFixed(1) : '—'],
-        [copy.ratio, rate ? rate.charsPerToken.toFixed(3) : '—'],
+        [copy.ratio, Number.isFinite(rate?.charsPerToken) ? rate.charsPerToken.toFixed(3) : '—'],
         [copy.total, rate?.sessionUsage?.generated?.toLocaleString() ?? '—'],
         [copy.events, String(rate?.eventsSeen ?? 0)], [copy.state, label],
       ];
@@ -139,12 +147,13 @@
     $('peak-value').title = copy.peakHint;
     $('active-time').textContent = copy.active + window.TPSChart.duration(statistics?.activeMs || 0);
     $('stats-warning').textContent = rate?.statisticsWarning ? copy.persistenceWarning : '';
+    if (rate?.statisticsWarning || historyError) { $('badge').dataset.state = 'warning'; $('badge').title += ' · ' + (historyError || copy.persistenceWarning); }
     $('history-note').textContent = historyError || copy.historyNote;
     $('reset-stats').textContent = Date.now() < resetUntil ? copy.confirmReset : copy.reset;
   }
   const chartKey = () => `${key()}|${$('chart-window').value}`;
   function paintChart() {
-    chart.render(history, { averageTps: rate?.sessionStats?.averageTps,
+    chart.render(history, { compact, identity: key(), averageTps: rate?.sessionStats?.averageTps,
       empty: copy.empty, locale: document.documentElement.lang });
   }
   async function pollHistory() {
@@ -207,7 +216,10 @@
     $('http-text').textContent = copy.http; $('auth-hint').textContent = copy.hint;
     $('estimate-hint').textContent = copy.estimate;
     $('average-label').textContent = copy.average; $('peak-label').textContent = copy.peak;
-    $('chart-toggle').textContent = copy.chart; $('chart-axis').textContent = copy.axis;
+    $('chart-toggle').textContent = '⋯';
+    $('chart-toggle').title = copy === zh ? '详情' : 'Details';
+    $('chart-toggle').setAttribute('aria-label', $('chart-toggle').title);
+    $('chart-axis').textContent = copy.axis;
     $('chart').setAttribute('aria-label', copy.chart + ': ' + copy.axis + ' / tok/s');
     for (const [index, label] of [copy.recent60, copy.recent300, copy.all].entries()) $('chart-window').options[index].textContent = label;
     $('reset-stats').textContent = copy.reset;
@@ -249,10 +261,7 @@
     catch (error) { transient = describe(error); draw(); }
   });
   $('chart-toggle').addEventListener('click', () => {
-    $('chart-body').hidden = !$('chart-body').hidden;
-    $('chart-toggle').setAttribute('aria-expanded', String(!$('chart-body').hidden));
-    if (!$('chart-body').hidden) { paintChart(); historyPolledAt = 0; void pollHistory(); }
-    resize();
+    detailsOpen = !detailsOpen; draw(); paintChart(); resize();
   });
   $('chart-window').addEventListener('change', () => {
     history = []; historyKey = ''; paintChart(); void pollHistory();
@@ -264,7 +273,7 @@
     try {
       await request('POST', '/stats/reset', { origin, sessionId });
       if (expected !== key()) return;
-      history = []; historyKey = ''; rate = null; paintChart(); await poll();
+      history = []; historyKey = ''; rate = null; liveValue.reset(); paintChart(); await poll();
     } catch (error) { transient = describe(error); draw(); }
   });
   host.onReady(context => {
@@ -281,7 +290,7 @@
   });
   host.onSession(session => {
     const next = session?.id ?? null;
-    if (sessionId !== next) { sessionId = next; rate = null; peak = 0; history = []; historyKey = ''; historyError = ''; resetUntil = 0; paintChart(); draw(); }
+    if (sessionId !== next) { sessionId = next; rate = null; liveValue.reset(); history = []; historyKey = ''; historyError = ''; resetUntil = 0; paintChart(); draw(); }
     sessionTitle = session?.title ?? '';
     if (started) void poll();
   });

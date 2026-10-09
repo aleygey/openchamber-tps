@@ -1,10 +1,10 @@
 {
   "name": "openchamber-tps",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "private": true,
   "type": "module",
   "license": "MIT",
-  "description": "TPS meter with UI-password authentication, persistent per-session active average/peak and activity charts.",
+  "description": "Minimal authenticated TPS meter with display-only smoothing, raw session statistics and activity history.",
   "openchamber": {
     "apiVersion": 1,
     "engines": {
@@ -20,7 +20,7 @@
       "statusSection": {
         "entry": "status/index.html",
         "title": "TPS",
-        "height": 240
+        "height": 112
       },
       "service": {
         "entry": "service/main.js",

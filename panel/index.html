@@ -8,47 +8,36 @@
 </head>
 <body data-mode="panel">
   <main id="root">
-    <h1 class="panel-only">TPS Meter <small>1.2.1</small></h1>
-    <div class="readout"><span class="value" id="value">—</span><span class="unit">tok/s</span><span class="badge" id="badge">connecting</span></div>
-    <div class="bar"><div class="fill" id="fill"></div></div>
+    <h1 class="panel-only">TPS Meter <small>1.3.0</small></h1>
+    <div class="readout">
+      <span class="value" id="value" title="Smoothed estimate">—</span><span class="unit">tok/s</span>
+      <span id="badge" class="badge" role="status" tabindex="0" aria-label="Connecting" title="Connecting"></span>
+      <button id="chart-toggle" class="more" type="button" aria-expanded="false" aria-controls="extra" aria-label="Details">⋯</button>
+    </div>
     <div class="notice" id="notice" role="status"></div>
-    <section id="metrics" class="metrics" hidden aria-label="Session TPS statistics">
-      <div class="summary-row">
-        <div><span id="average-label" class="metric-label">Average</span><strong id="average-value">—</strong></div>
-        <div><span id="peak-label" class="metric-label">Peak</span><strong id="peak-value">—</strong></div>
-        <span class="metric-unit">tok/s</span>
-      </div>
-      <div class="chart-toolbar">
-        <button id="chart-toggle" type="button" aria-expanded="true" aria-controls="chart-body">Activity chart</button>
-        <span id="active-time" class="hint"></span>
-      </div>
-      <div id="chart-body">
-        <div class="chart-options"><span id="chart-axis" class="hint"></span><select id="chart-window" aria-label="Chart time range"><option value="60000">60s</option><option value="300000">5m</option><option value="0">All</option></select></div>
-        <div class="chart-wrap"><svg id="chart" role="img" aria-label="TPS over cumulative active time"></svg><output id="chart-tooltip" class="chart-tooltip" hidden></output></div>
-        <div id="history-note" class="hint"></div>
-      </div>
-      <div id="stats-warning" class="notice error" role="status"></div>
+    <section id="metrics" class="metrics" hidden aria-label="TPS statistics">
+      <div id="chart-body"><div class="chart-wrap"><svg id="chart" role="img" aria-label="Smoothed TPS over generation time"></svg><output id="chart-tooltip" class="chart-tooltip" hidden></output></div></div>
+      <section id="extra" hidden>
+        <div class="summary-row">
+          <div><span id="average-label" class="metric-label">Average</span><strong id="average-value">—</strong></div>
+          <div><span id="peak-label" class="metric-label">Peak</span><strong id="peak-value">—</strong></div><span class="metric-unit">tok/s</span>
+        </div>
+        <div class="chart-options"><span id="active-time" class="hint"></span><select id="chart-window" aria-label="Chart time range"><option value="60000">60s</option><option value="300000">5m</option><option value="0">All</option></select></div>
+        <span id="chart-axis" class="sr-only"></span><div id="history-note" class="hint"></div>
+        <div id="stats-warning" class="notice error" role="status"></div>
+        <div class="panel-only"><div id="session" class="hint"></div><dl id="details"></dl><p class="hint" id="estimate-hint"></p></div>
+        <div class="actions"><button id="retry" type="button">Retry</button><button id="forget" type="button">Forget login</button><button id="reset-stats" type="button">Reset</button></div>
+      </section>
     </section>
     <section id="auth" class="auth" hidden role="group" aria-label="TPS authentication">
       <div class="server" id="server"></div>
-      <div class="login-row">
-        <input id="password" type="password" autocomplete="off" maxlength="4096" required aria-label="OpenChamber UI password">
-        <button type="button" id="login">Sign in</button>
-      </div>
-      <label class="confirm" id="http-confirm" hidden>
-        <input id="allow-http" type="checkbox"><span id="http-text"></span>
-      </label>
-      <p class="hint" id="auth-hint"></p>
-      <div class="notice error" id="auth-error" role="alert"></div>
-    </section>
-    <section class="panel-only details">
-      <div id="session" class="hint"></div>
-      <dl id="details"></dl>
-      <div class="actions"><button id="retry" type="button">Retry</button><button id="forget" type="button">Forget TPS login</button><button id="reset-stats" type="button">Reset statistics</button></div>
-      <p class="hint" id="estimate-hint"></p>
+      <div class="login-row"><input id="password" type="password" autocomplete="off" maxlength="4096" required aria-label="OpenChamber UI password"><button type="button" id="login">Sign in</button></div>
+      <label class="confirm" id="http-confirm" hidden><input id="allow-http" type="checkbox"><span id="http-text"></span></label>
+      <p class="hint" id="auth-hint"></p><div class="notice error" id="auth-error" role="alert"></div>
     </section>
   </main>
   <script src="../ui/host-bridge.js"></script>
+  <script src="../ui/presentation.js"></script>
   <script src="../ui/chart.js"></script>
   <script src="../ui/app.js"></script>
 </body>

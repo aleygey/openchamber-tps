@@ -1,0 +1,148 @@
+TAP version 13
+# Subtest: origin validation rejects credentials, paths, non-http schemes and query strings
+ok 1 - origin validation rejects credentials, paths, non-http schemes and query strings
+  ---
+  duration_ms: 0.899019
+  type: 'test'
+  ...
+# Subtest: login uses official endpoint and keeps port-scoped cookie in memory
+ok 2 - login uses official endpoint and keeps port-scoped cookie in memory
+  ---
+  duration_ms: 36.299828
+  type: 'test'
+  ...
+# Subtest: wrong password is not retried automatically
+ok 3 - wrong password is not retried automatically
+  ---
+  duration_ms: 92.751921
+  type: 'test'
+  ...
+# Subtest: origin switching cancels pending login and drops all credentials
+ok 4 - origin switching cancels pending login and drops all credentials
+  ---
+  duration_ms: 33.770442
+  type: 'test'
+  ...
+# Subtest: a login redirect never receives credentials at its destination
+ok 5 - a login redirect never receives credentials at its destination
+  ---
+  duration_ms: 5.434545
+  type: 'test'
+  ...
+# Subtest: 429 prevents a second outbound login while Retry-After is active
+ok 6 - 429 prevents a second outbound login while Retry-After is active
+  ---
+  duration_ms: 11.981301
+  type: 'test'
+  ...
+# Subtest: session-cookie parsing accepts canonical names only and respects Secure/expiry
+ok 7 - session-cookie parsing accepts canonical names only and respects Secure/expiry
+  ---
+  duration_ms: 0.630707
+  type: 'test'
+  ...
+# Subtest: SDK hello/ready/session and real v1 resize envelope
+ok 8 - SDK hello/ready/session and real v1 resize envelope
+  ---
+  duration_ms: 1.910918
+  type: 'test'
+  ...
+# Subtest: service requests accept matching parent responses only
+ok 9 - service requests accept matching parent responses only
+  ---
+  duration_ms: 1.488714
+  type: 'test'
+  ...
+# Subtest: authenticated HTTP/SSE keeps tools out of metrics and display; history remains numeric-only
+ok 10 - authenticated HTTP/SSE keeps tools out of metrics and display; history remains numeric-only
+  ---
+  duration_ms: 1103.626001
+  type: 'test'
+  ...
+# Subtest: a loaded metrics-v2 record is unchanged by all display transforms
+ok 11 - a loaded metrics-v2 record is unchanged by all display transforms
+  ---
+  duration_ms: 0.654753
+  type: 'test'
+  ...
+# Subtest: trend uses 250ms display buckets without mutating numeric history
+ok 12 - trend uses 250ms display buckets without mutating numeric history
+  ---
+  duration_ms: 1.512399
+  type: 'test'
+  ...
+# Subtest: EMA dampens a step and stays within the observed envelope
+ok 13 - EMA dampens a step and stays within the observed envelope
+  ---
+  duration_ms: 0.176344
+  type: 'test'
+  ...
+# Subtest: short fragment boundary joins are display-only, never add active time
+ok 14 - short fragment boundary joins are display-only, never add active time
+  ---
+  duration_ms: 0.443466
+  type: 'test'
+  ...
+# Subtest: medium gaps get a dashed join; long tool pauses remain hard breaks with no fill
+ok 15 - medium gaps get a dashed join; long tool pauses remain hard breaks with no fill
+  ---
+  duration_ms: 0.274422
+  type: 'test'
+  ...
+# Subtest: unmarked slow intervals are not deleted from the chart
+ok 16 - unmarked slow intervals are not deleted from the chart
+  ---
+  duration_ms: 2.844424
+  type: 'test'
+  ...
+# Subtest: invalid, backwards and long histories remain bounded
+ok 17 - invalid, backwards and long histories remain bounded
+  ---
+  duration_ms: 3.658871
+  type: 'test'
+  ...
+# Subtest: live value only advances on new measurements, not repeated polls
+ok 18 - live value only advances on new measurements, not repeated polls
+  ---
+  duration_ms: 0.470076
+  type: 'test'
+  ...
+# Subtest: tools, waits, failed transport, authentication and sampling never show a held rate
+ok 19 - tools, waits, failed transport, authentication and sampling never show a held rate
+  ---
+  duration_ms: 0.196675
+  type: 'test'
+  ...
+# Subtest: session switch, reset and clock reversal cannot leak smoothing state
+ok 20 - session switch, reset and clock reversal cannot leak smoothing state
+  ---
+  duration_ms: 0.284557
+  type: 'test'
+  ...
+# Subtest: time-scaled number EMA is independent of polling frequency
+ok 21 - time-scaled number EMA is independent of polling frequency
+  ---
+  duration_ms: 0.418508
+  type: 'test'
+  ...
+# Subtest: 5-minute tool runtime never changes raw statistics, with or without display smoothing
+ok 22 - 5-minute tool runtime never changes raw statistics, with or without display smoothing
+  ---
+  duration_ms: 4.816209
+  type: 'test'
+  ...
+# Subtest: a genuine 3-second slow-stream interval is retained, not threshold-trimmed
+ok 23 - a genuine 3-second slow-stream interval is retained, not threshold-trimmed
+  ---
+  duration_ms: 0.213931
+  type: 'test'
+  ...
+1..23
+# tests 23
+# suites 0
+# pass 23
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1169.434545
